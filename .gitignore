@@ -1,0 +1,15 @@
+__pycache__/
+*.pyc
+scratch/
+results/smoke*/
+results/smoke2.jsonl
+*.aux
+*.log
+*.out
+*.toc
+.DS_Store
+latex-paper/*.aux
+latex-paper/*.log
+latex-paper/*.out
+build/
+checkpoints/pretrain_smoke*.pt

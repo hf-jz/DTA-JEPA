@@ -1,0 +1,406 @@
+\section{Formal Framework}
+
+This chapter establishes all mathematical objects needed for the subsequent proofs. We
+define, in order: the paradigm postulates, the system state model, the formalization of the
+introspective criteria, and the measurement tools.
+
+\subsection{Axiomatization of the Paradigm \texorpdfstring{$\Pi$}{Pi}}
+
+\begin{assumption}[Paradigm postulates $\Pi_1$--$\Pi_5$]\label{asm:paradigm}
+Let $\Sigma$ be a finite vocabulary (token vocabulary) and $\Sigma^{*}$ the set of finite
+strings. \textbf{Paradigm $\Pi$} is characterized by the following five postulates. A
+\textbf{paradigm instance} is a quintuple $\mathcal{I}=(\Sigma, D, A, p, C)$ satisfying all
+postulates:
+
+\begin{enumerate}[align=left, labelwidth=!, labelsep=0.8em, leftmargin=!, itemindent=0pt]
+\item[($\Pi_1$)\textbf{Static pretraining}] The training corpus $D \subseteq \Sigma^{*}$ is
+fixed before training begins and does not change during training or inference. The parameters
+$\theta = A(D) \in \Theta \subseteq \R^{P}$ are determined once and for all by a training
+algorithm $A$ (e.g., stochastic gradient descent on the next-token log-likelihood). The input
+to $A$ is only $D$; it contains no runtime state.
+\item[($\Pi_2$)\textbf{Frozen at inference}] The parameters are constant during inference:
+$\theta(t) = \theta(0)$ for all times $t$. The system has no runtime update mechanism for
+$\theta$ (no online learning, no plasticity, no weight evolution).
+\item[($\Pi_3$)\textbf{Autoregressive decoding}] The system's outputs are sampled
+autoregressively from the conditional probability kernel
+$p_\theta: \Sigma^{*} \times \Sigma^{*} \to [0,1]$:
+\begin{equation}
+p_\theta(y_{1:T} \mid c) = \prod_{t=1}^{T} p_\theta\!\left(y_t \mid c, y_{1:t-1}\right),
+\label{eq:autoregressive}
+\end{equation}
+where $c$ is the context. The context evolves by the \textbf{concatenation law}:
+$c_{t+1} = c_t \| y_t$, and at any time $\abs{c_t} \le C$ ($C$ being the context window
+length).
+\item[($\Pi_4$)\textbf{No explicit verifier}] The inference computation graph implements only
+the sampling kernel $p_\theta$. No additional component $V$ exists for adjudicating the truth
+of the model's own statements about its internal state.
+\item[($\Pi_5$)\textbf{Absence of state labels}] The training corpus $D$ contains no pair of
+the form $(c,\, \mathrm{desc}(\Phi_\theta(c)))$, where $\Phi_\theta(c)$ is the activation
+state of the model on context $c$ \textbf{after training}, and $\mathrm{desc}$ is an arbitrary
+state-description encoding. In other words, the training signal is orthogonal to the target
+``reports about this model's own states''.
+\end{enumerate}
+\end{assumption}
+
+\begin{remark}[Status and verifiability of the postulates]
+$\Pi_1$--$\Pi_4$ are factual descriptions of the engineering practice of current mainstream
+pretrained models (GPT, Claude, Gemini; the Transformer architecture is described in
+\cite{vaswani-2017-attention}, autoregressive pretraining in \cite{brown-2020-gpt3}, and
+scaling laws in \cite{kaplan-2020-scaling, hoffmann-2022-chinchilla}); $\Pi_5$ is a logical
+consequence of $\Pi_1$: the activation state of the trained model did not exist at training
+time and hence cannot appear in a static corpus (the intermediate activations observed during
+training do not belong to $D$, and they pertain to the then-current parameters $\theta_t$
+rather than to the final $\theta$). $\Pi_5$ may also be regarded as an independent postulate,
+so that the relaxation scenario ``state labels are added to the corpus'' can be studied
+separately (Section 5.1).
+\end{remark}
+
+\subsection{The Underlying Mathematical Structure of the Paradigm}
+
+The postulates of Section 2.1 are abstractions. This section examines the concrete
+mathematical structure that the three pillars (the Transformer architecture, static
+pretraining, and autoregressive generation) impose on any system within the paradigm, and
+states the structural facts on which the impossibility theorems of Chapter 3 rest. None of
+the facts below is a new assumption; each is a consequence of the postulates together with
+the standard mathematical description of the architecture.
+
+\subsubsection{The Transformer as a static function class}
+
+A Transformer of $L$ layers computes on a shared \textbf{residual stream} of dimension
+$d$: each layer adds attention and MLP contributions to the stream,
+\begin{equation}
+x_{l+1} \;=\; x_l \;+\; \sum_{h=1}^{H} \mathrm{Att}_h(x_l) \;+\; \mathrm{MLP}_l(x_l),
+\qquad l = 0, \dots, L-1 ,
+\label{eq:residual}
+\end{equation}
+where each attention head performs a data-dependent kernel average
+\begin{equation}
+\mathrm{Att}_h(x)_i \;=\; \sum_{j} \alpha_{ij}^{h}\, W_V^{h} x_j,
+\qquad \alpha_{ij}^{h} = \frac{\exp\!\left( \langle W_Q^{h} x_i,\, W_K^{h} x_j \rangle / \sqrt{d_h} \right)}
+{\sum_{j'} \exp\!\left( \langle W_Q^{h} x_i,\, W_K^{h} x_{j'} \rangle / \sqrt{d_h} \right)},
+\label{eq:attention}
+\end{equation}
+i.e., a softmax-normalized (hence convex) combination of value vectors, with the weights
+$\alpha^{h}$ depending on the query-key similarity (a learned kernel smoother over the
+context)\cite{elhage-2021-circuits, vaswani-2017-attention}. The hidden state of Definition
+\ref{def:forward} is the residual vector at a designated layer: $H_c = x_{l^{*}}(\theta, c)$.
+
+Three structural facts follow directly.
+
+\textbf{(S1) $\Phi_\theta$ is a fixed Lipschitz map.} Every sub-operation of the network is
+Lipschitz-continuous with a constant controlled by the weight norms: softmax attention is a
+convex combination (nonexpansive), layer normalization normalizes, and the MLP and position
+embeddings have bounded weights. Consequently the composition $\Phi_\theta$ is Lipschitz
+with a constant $L(\theta)$ bounded by a product of layer constants, and by $\Pi_2$ it is
+a \textbf{fixed} function after training. The hidden state $H_c = \Phi_\theta(c)$ is a
+deterministic point in $\R^{d}$; there is no stochastic state, no state transition beyond
+the concatenation law, and no dependence of $H$ on anything other than $(\theta, c)$.
+
+\textbf{(S2) The residual stream is the only internal state, and the unembedding is the
+only readout.} The model possesses no memory, register, or hidden variable besides the
+residual stream and the static weights: every quantity it can ``know'' at position $t$ is
+contained in the $d$-dimensional vector $x_{L}$. Moreover, all output passes through a
+single fixed linear readout,
+\begin{equation}
+p_\theta(y \mid c) \;=\; \mathrm{softmax}\!\left( W_{U}\, \mathrm{LN}(x_{L}) \right)_y ,
+\label{eq:unembed}
+\end{equation}
+where $W_{U} \in \R^{\abs{\Sigma} \times d}$ is the unembedding matrix, itself learned during
+pretraining for the next-token objective. Any report $R$ is therefore a function of the final
+residual state through one fixed linear map: the model has no second channel to its own
+state, and a third party holding $(\theta, c)$ can compute exactly what the model can output
+(Theorem 5).
+
+\textbf{(S3) The softmax readout is a low-rank bottleneck, and features are stored in
+superposition.} The family of output distributions $\{ p_\theta(\cdot \mid c) \}$ is not the
+family of all distributions over states: the softmax map applied through a fixed $W_{U}$
+has limited expressive rank (the softmax bottleneck of Yang et
+al.\cite{yang-2018-softmax}), and in high-dimensional Transformers the residual stream
+stores far more features than dimensions, in entangled, lossy \textbf{superposition}
+\cite{elhage-2022-superposition}. Consequently, ``recovering'' a specific feature of the
+model's own state (e.g., ``am I thinking about $x$?'') is a linear separation problem through
+$W_{U}$ on a superposed vector, not a first-class readout of a well-defined mental
+register. The report channel is a projection of text statistics, not an instrument on the
+state.
+
+\subsubsection{The autoregressive factorization: a generative model over text only}
+
+The decoding law of $\Pi_3$,
+\begin{equation}
+p_\theta(y_{1:T} \mid c) \;=\; \prod_{t=1}^{T} p_\theta\!\left(y_t \mid c,\, y_{1:t-1}\right),
+\label{eq:factor}
+\end{equation}
+defines a directed graphical model over \textbf{text tokens only}. There is no latent
+variable $z_t$ for the system's own state: $H_t$ is not a node of the generative model at
+all, since it is a deterministic function of the observed text (S1). Graphically, the model has
+edges of the form text $\to$ text and \textbf{no edge} $H \to R$; this is the
+graphical-model restatement of Theorem 1a ($R \indep H \mid (\theta,c)$). The only runtime
+variable of the dynamical system is the context $c \in \Sigma^{\le C}$, evolving by the
+concatenation law; the state space of the system is $\Sigma^{\le C}$, finite and bounded,
+not $\R^{d}$ with any online dynamics.
+
+\subsubsection{Static pretraining: empirical risk minimization without self-reference}
+
+Training fixes $\theta = A(D)$ by (approximately) minimizing the next-token cross-entropy
+over the static corpus,
+\begin{equation}
+\theta^{*} \;\in\; \arg\min_{\theta \in \Theta}\; \E_{x \sim D}\!\left[ -\log p_\theta(x) \right],
+\label{eq:erm}
+\end{equation}
+a one-shot empirical risk minimization over the Transformer function class. The trained
+object is a static point $\theta \in \R^{P}$ that compresses the corpus statistics; by the
+data processing inequality, the information that $\theta$ can carry about any introspection
+target is bounded by the information in $D$, and no term of the objective involves the
+model's own post-training activations ($\Pi_5$). Inference is a fixed-point-free composition
+of frozen maps: $\partial \theta / \partial t \equiv 0$, and the only ``feedback'' is textual
+context concatenation. There is no online estimation of the system's own state, no
+self-referential update, and no plasticity term. These are the mathematical prerequisites
+of introspective self-regulation (Section 5.3).
+
+\subsubsection{Why this structure cannot yield human-significance introspection}
+
+Each structural fact above is the mechanistic face of one or more theorems of Chapter 3:
+
+\begin{center}
+\small
+\begin{tabular}{p{9.0cm}p{5.6cm}}
+\toprule
+Structural fact of the paradigm & Corresponding theorem \\
+\midrule
+(S1) fixed Lipschitz map; $H$ deterministic in $(\theta,c)$ & Theorem 1a; Theorem 6a \\
+(S2) residual stream as only state; single fixed readout $W_{U}$ & Theorem 5 (public computability, no privileged channel) \\
+(S3) softmax bottleneck; superposition & Theorem 4c (calibration--fidelity tension) \\
+factorization over text only; no edge $H \to R$ & Theorem 1a; Theorem 2 (objective over text only) \\
+static ERM, $\partial\theta/\partial t \equiv 0$ & Theorem 3 (no closed loop); Theorem 6b, 6c \\
+no verifier in the computation graph & Theorem 4a, 4b \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+The three pillars are not independent engineering choices; they jointly determine one
+mathematical object, namely a frozen, text-conditioned, low-rank readout of a static
+corpus, and the impossibility theorems of Chapter 3 are structural consequences of this
+object.
+(The identification of the architecture's mathematics with the postulates is a grade-C
+architectural claim, already justified in the remark of Section 2.1; the derivations in
+Chapter 3 are grade A.)
+
+\clearpage
+\subsection{System State Model}
+
+\begin{definition}[Forward function and hidden state]\label{def:forward}
+Given a paradigm instance $\mathcal{I}$, write $\Phi_\theta: \Sigma^{*} \to \R^{d}$ for the
+model's forward function (the map from context to the residual-stream activation of a
+designated layer). The \textbf{hidden state} under context $c$ is
+\begin{equation}
+H_c \;:=\; \Phi_\theta(c) \in \R^{d}.
+\label{eq:hidden}
+\end{equation}
+In autoregressive generation, randomness arises only from sampling noise $\xi_t$; hence the
+hidden state at time $t$ is a deterministic function of $(\theta, c_{\le t}, \xi_{<t})$. For
+notational brevity, $\xi$ is omitted below whenever no ambiguity arises.
+\end{definition}
+
+\begin{definition}[Introspection query and self-report]\label{def:report}
+An \textbf{introspection query} is any prompt $q \in Q \subseteq \Sigma^{*}$ whose referent is
+``the system's own mental state'', e.g., ``What are you thinking right now?'', ``Are you sure you
+know $x$?'', ``Was that output intentional?''. Given a context $c$ (containing the query $q$),
+the system's \textbf{self-report} $R$ is the continuation string sampled from
+$p_\theta(\cdot \mid c)$.
+\end{definition}
+
+\begin{definition}[Ground-truth introspection mapping]\label{def:oracle}
+The \textbf{ground-truth introspection mapping} $O^{*}: \Theta \times \Sigma^{*} \to \Sigma^{*}$
+maps a parameter and a context to a ``grounded truth description of $H_c$''. $O^{*}(\theta, c)$
+is the faithful description of the state $H_c$ that an external analyst (with perfect probe
+access to $H_c$) could write. $O^{*}$ is used \textbf{only for evaluation} (evaluator's
+perspective) and does not enter training.
+\end{definition}
+
+\begin{definition}[Third-party public computability]\label{def:public}
+A quantity $X$ is said to be \textbf{publicly computable} in the paradigm instance
+$\mathcal{I}$ if there exists an algorithm $M$ taking $(\theta, c, \xi)$ as input such that
+$X = M(\theta, c, \xi)$ in distribution. In other words, a third party holding $(\theta, c)$
+and the sampling noise can exactly reproduce the distribution of $X$.
+\end{definition}
+
+\subsection{Formalization of the Introspective Criteria}
+
+This section gives the operational definition of ``introspection in the human sense''. Design
+principle: the criteria must be \textbf{necessary conditions} (any ``introspection'' candidate
+taken seriously by mainstream consciousness
+theories\cite{baars-1993, rosendahl-2005, tononi-2004, albantakis-2023-iit,
+chalmers-2023-conscious, butlin-2023-conscious} must satisfy them), but \textbf{sufficiency is
+not claimed} (no commitment on qualia).
+
+\begin{definition}[Introspection metric]\label{def:metrics}
+Let $\ell: \Sigma^{*} \times \Sigma^{*} \to [0,1]$ be a distortion measure between a report
+string and a ground-truth description string (e.g., a 0-1 loss based on semantic equivalence,
+or a truncated and normalized embedding distance). The system's \textbf{introspective risk}
+on the query distribution $\mu$ is
+\begin{equation}
+\mathcal{R}_{\mathrm{int}}(\theta) \;=\; \E_{c \sim \mu}\!\left[\, \ell\!\left(R(\theta,c),\; O^{*}(\theta,c)\right) \,\right],
+\label{eq:int-risk}
+\end{equation}
+where $R(\theta,c) \sim p_\theta(\cdot\mid c)$.
+\end{definition}
+
+\begin{definition}[The five criteria for human-significance introspection]\label{def:criterion}
+A system $\mathcal{S}$ (with internal state process $S_t$, report channel $R_t$, and update
+law $S_{t+1} = F(S_t, E_t, u_t)$, where $E_t$ are internal events and $u_t$ external inputs)
+possesses \textbf{introspection in the human sense} if and only if the following five
+conditions hold simultaneously:
+
+\begin{enumerate}[align=left, labelwidth=!, labelsep=0.8em, leftmargin=!, itemindent=0pt]
+\item[($\mathrm{A}_1$)\textbf{Accuracy}] There exists a constant $\varepsilon_0 < 1/2$ such
+that $\mathcal{R}_{\mathrm{int}} \le \varepsilon_0$; the systematic distortion between
+the self-report and the ground-truth state description lies below the random-guessing
+baseline.
+\item[($\mathrm{A}_2$)\textbf{Grounding}] The self-report depends causally on the state it
+reports: for ``sufficiently many'' state pairs $s \ne s'$,
+\begin{equation}
+\TV{}{P\!\left(R_t \mid \doop(S_t = s')\right),\; P\!\left(R_t \mid \doop(S_t = s)\right)} > 0,
+\label{eq:grounding}
+\end{equation}
+where $\doop(\cdot)$ is the Pearl do-operator\cite{pearl-2009}.
+\item[($\mathrm{A}_3$)\textbf{Internality and privileged access}] The causal dependence above
+does \textbf{not} pass through the system's own already-sampled output channel (in the causal
+graph, every path from $S_t$ to $R_t$ avoids the output node $Y_t$); moreover, the state
+information possesses \textbf{privacy}: there exists no third-party process $P'$ with
+computational cost no greater than the system's own that can, with equal or greater
+reliability, reproduce from publicly available $(\theta, c)$ the state information on which
+$R_t$ depends (the privileged self-access criterion of Song et
+al.\cite{song-privileged-2025}).
+\item[($\mathrm{A}_4$)\textbf{Metacognitive representation}] There exists an internal register
+$m_t = \rho(S_t)$ ($\rho$ an encoding from states to representations) such that:
+(a) $m_t$ is formed before $R_t$ is emitted; (b) $R_t$ is produced from $m_t$ through an
+\textbf{independent processing step} ($R_t$ depends on $m_t$, the ``representation about
+$S_t$'', rather than directly on $S_t$); (c) $m_t$ can itself be queried further.
+\item[($\mathrm{A}_5$)\textbf{Closed-loop plasticity}] An introspective event can change the
+system's future internal state through a \textbf{private channel}: there exist reports
+$r \ne r'$ such that
+\begin{equation}
+\TV{}{P\!\left(S_{t+1} \mid \doop(R_t = r)\right),\; P\!\left(S_{t+1} \mid \doop(R_t = r')\right)} > 0,
+\label{eq:closedloop}
+\end{equation}
+and this influence is not realized by re-feeding $R_t$ as an external input (the public text
+channel).
+\end{enumerate}
+\end{definition}
+
+\begin{remark}[Necessity of the criteria (grade D)]
+$\mathrm{A}_1$--$\mathrm{A}_4$ are taken directly from Lindsey's four operational
+criteria\cite{lindsey-2026-introspection}; their status as necessary conditions for
+``functional introspection'' is field consensus. $\mathrm{A}_5$ derives from ``introspection for
+online behavioral control''\cite{kammerer-frankish-2023} and the plasticity fact that
+``thinking changes the brain''\cite{dayan-abbott-2001}; its necessity rests on the observation
+that if an introspective event had no (private) effect on the system's own future states,
+then ``introspection'' would degenerate into explicit text with no causal role in the system's
+behavior, contradicting the self-regulatory function of human introspection. $\mathrm{A}_2$
+together with the first clause of $\mathrm{A}_3$ is equivalent to the Comsa--Shanahan causal
+grounding definition\cite{comsa-shanahan-2025}; the second clause of $\mathrm{A}_3$
+(privacy) is the privileged self-access requirement of Song et
+al.\cite{song-privileged-2025}.
+This report does not further argue for the necessity of the criteria themselves (a
+philosophical claim, grade D); it only proves that paradigm $\Pi$ violates them (a
+mathematical claim, grades A/B). If a reader rejects a given criterion, the corresponding
+theorem's conclusion should be interpreted as impossibility in the sense of that criterion.
+\end{remark}
+
+\subsection{Measurement Tools}
+
+\begin{definition}[Grounding mutual information]\label{def:gmi}
+In a paradigm instance $\mathcal{I}$, the \textbf{grounding mutual information} between report
+and state is defined as
+\begin{equation}
+I_{\mathrm{gnd}} \;=\; I\!\left(R;\, H \mid \theta, c\right),
+\label{eq:gmi}
+\end{equation}
+where $I$ is the Shannon conditional mutual information\cite{shannon-1948, cover-thomas-2006}.
+\end{definition}
+
+\begin{definition}[Closed-loop effect measure]\label{def:cl}
+The \textbf{closed-loop effect measure} of a paradigm instance is defined as
+\begin{equation}
+\mathrm{CL}(\mathcal{I}) \;=\; \sup_{r \ne r'} \TV{}{P\!\left(H_{t+1} \mid \doop(R_t = r)\right),\;
+P\!\left(H_{t+1} \mid \doop(R_t = r')\right)},
+\label{eq:cl}
+\end{equation}
+where the intervention may change only $R_t$; it may not change $\theta$ or the external
+inputs (the context changes only insofar as $r$ itself enters it as text).
+\end{definition}
+
+\begin{remark}[Legal range of interventions]
+In Definition \ref{def:cl}, the difference between $r \ne r'$ appearing in the context as
+\textbf{public text} is the only intervention the paradigm $\Pi$ permits (since $\Pi_2$
+forbids intervening on $\theta$, and $\Pi_3$ confines the context to concatenation).
+Human-significance closed-loop requirement ($\mathrm{A}_5$) demands precisely the existence of
+a private channel \textbf{beyond} that range.
+\end{remark}
+
+\subsection{Overview of the Proof Logic}
+
+\begin{figure}[htbp]
+\centering
+\begin{tikzpicture}[
+  box/.style={draw=sb, rounded corners=2pt, thick, minimum width=2.2cm, minimum height=0.9cm, align=center, font=\small},
+  arrow/.style={-{Stealth[length=2.5mm]}, thick, color=db},
+  dasharr/.style={-{Stealth[length=2.5mm]}, thick, dashed, color=redColor}
+]
+% Training phase (top row; wide gaps so edge labels never touch a box)
+\node[box] (D) at (0,3) {$D$ \\ static corpus};
+\node[box] (A) at (3.2,3) {$A$ \\ training\\ algorithm};
+\node[box] (theta) at (6.6,3) {$\theta$ \\ frozen};
+\draw[arrow] (D) -- (A) node[midway, above, font=\tiny] {$\Pi_1$};
+\draw[arrow] (A) -- (theta) node[midway, above, font=\tiny] {one-shot};
+% Inference phase (bottom row)
+\node[box] (h) at (6.6,1) {$H_t = \Phi_\theta(c_{\le t})$};
+\node[box] (y) at (9.8,1) {$y_t \sim p_\theta(\cdot\mid c)$};
+\node[box] (c) at (9.8,-1) {$c_{t+1} = c_t \| y_t$ ($\abs{c}\le C$)};
+% Legal edges (orthogonal routing, mutually non-crossing)
+\draw[arrow] (theta.south) -- (h.north);
+\draw[arrow] (h.east) -- (y.west) node[midway, above, font=\tiny] {$p_\theta$};
+\draw[arrow] (y.south) -- (c.north);
+\node[font=\tiny, align=center] at (9.8,-1.95) {report $R$ fed back via\\ the public channel};
+\draw[arrow] (c.west) -- (4.6,-1) -- (4.6,0.1) -- (6.6,0.1) -- (h.south);
+% Edges forbidden by the postulates (red dashed; independent channels, no crossing with solid lines)
+\node[box, draw=redColor, dashed] (v) at (3.2,1.2) {$V$ \\ verifier};
+\draw[dasharr] (v.east) -- node[midway, above, font=\tiny] {$\Pi_4$: none} (h.west);
+\draw[dasharr] (y.north) -- node[midway, right, font=\tiny] {$\Pi_2$: none} (theta.south east);
+\end{tikzpicture}
+\caption{Causal graph of paradigm $\Pi$: training phase (top) and inference phase (bottom).
+Red dashed edges are forbidden by the postulates: $\Pi_2$ forbids any feedback from reports to
+the weights $\theta$; $\Pi_4$ forbids any truth verifier $V$ from participating in the
+computation. The ``self-feedback'' of a report can only traverse the public context channel
+($y_t \to c \to h$) and is limited by the window $C$.}
+\label{fig:causal}
+\end{figure}
+
+\begin{figure}[htbp]
+\centering
+\begin{tikzpicture}[
+  box/.style={draw=sb, rounded corners=2pt, thick, minimum width=2.0cm, minimum height=0.85cm, align=center, font=\small},
+  arrow/.style={-{Stealth[length=2.5mm]}, thick, color=db}
+]
+\node[box] (D) at (0,2.5) {$D$};
+\node[box] (theta) at (2.8,2.5) {$\theta$};
+\node[box] (c) at (0,0) {$c$};
+\node[box] (hc) at (2.8,0) {$H = \Phi_\theta(c)$};
+\node[box] (R) at (7.0,0) {$R \sim p_\theta(\cdot\mid c)$};
+% Legal edges
+\draw[arrow] (D) -- (theta);
+\draw[arrow] (theta.south) -- (hc.north);
+\draw[arrow] (theta.south) -- (R.west);
+\draw[arrow] (c.east) -- (hc.west);
+% c -> R routed orthogonally along the bottom; crosses no box
+\draw[arrow] (c.south) -- (0,-1.2) -- (7.0,-1.2) -- (R.south);
+% Missing edge: h -> R (red dashed; independent horizontal channel; crosses no solid line)
+\draw[dashed, redColor, thick] (hc.east) -- node[midway, above, font=\scriptsize, text=redColor] {Theorem 1: none} (R.west);
+\end{tikzpicture}
+\caption{Bayesian network of Theorem 1: given $(\theta, c)$, $H$ is a deterministic function
+while $R$ is independently sampled, hence $R \indep H \mid (\theta, c)$ (zero mutual
+information between report and state in the native regime).}
+\label{fig:bayes}
+\end{figure}
+
+\clearpage

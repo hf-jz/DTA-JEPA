@@ -1,0 +1,113 @@
+\section{Conclusion}
+
+\subsection{Adjudication of Proposition \texorpdfstring{$P$}{P}}
+
+This report completes the proof of proposition $P$:
+
+\begin{quote}
+\itshape
+Within the paradigm $\Pi$ characterized by the postulates $\Pi_1$--$\Pi_5$ (static
+pretraining, frozen at inference, autoregressive decoding, no explicit verifier, absence of
+state labels), no pretrained generative large language model satisfies the five necessary
+criteria $\mathrm{A}_1$--$\mathrm{A}_5$ of human-significance introspection.
+\end{quote}
+
+Proof structure: criterion $\mathrm{A}_1$ is broken by Theorems 1 and 2 (accuracy
+unguaranteed, objective mismatch); $\mathrm{A}_3$ is broken by Theorem 5 (no privileged
+channel); $\mathrm{A}_4$ is broken by Theorem 4 (metarepresentation has no structural
+guarantee); $\mathrm{A}_5$ is broken by Theorems 3 and 6 (no private closed loop, no
+self-model evolution). $\mathrm{A}_2$ (grounding) fails in the native regime by Theorem 1a
+($I(R;H\mid\theta,c)=0$); statistical association can appear only under external
+intervention, and external intervention is precisely third-party access, which does not
+constitute a first-person channel.
+
+The empirical findings of the Anthropic concept-injection paper\cite{lindsey-2026-introspection}
+(about 20\% success, high context dependence, zero net benefit for base models, unverifiable
+metacognitive representation, the authors' denial of human-like self-awareness) agree with all
+the theorems and are their necessary corollaries. The ``weak functional self-report'' exhibited
+by the paper, a \textbf{externally injectable, publicly reproducible, unguaranteed,
+loop-free, non-evolving} textual-statistical behavior, is the ceiling of what paradigm
+$\Pi$ can achieve.
+
+\subsection{Summary of the Theorems}
+
+\begin{table}[htbp]
+\centering
+\caption{Summary of the theorems\label{tab:summary}}
+\begin{tabular}{p{2.8cm}p{5.0cm}p{4.8cm}p{1.6cm}}
+\toprule
+Theorem / Prop. & Content & Basis/Proof & Grade \\
+\midrule
+Theorem 1a & Native-regime $I(R;H\mid\theta,c)=0$ & Deterministic function + conditional mutual information & A \\
+Theorem 1b & No PAC guarantee for introspective accuracy & No-Free-Lunch \cite{shalev-shwartz-2014} & A \\
+Theorem 2 & Proxy-objective mismatch & Goodhart regression\cite{manheim-garrabrant-2018-goodhart},
+\cite{skalse-2022-reward-hacking} & A \\
+Theorem 3 & Closed-loop failure; no private channel & Structural derivation from $\Pi_2,\Pi_3$ & A \\
+Theorem 4 & Generation $\neq$ verification & $\Pi_4$ + NFL; calibrated hallucination\cite{kalai-vempala-2023-calib} & A/B \\
+Theorem 5 & No privileged channel & Public computability + Theorem 1b & A \\
+Theorem 6 & No self-model evolution & Structural derivation from $\Pi_2,\Pi_3$ & A/B \\
+Proposition $P$ & No human-significance introspection within the paradigm & Theorems 1--6 + criterion necessity & A (under the grade-D premise) \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsection{Theoretical Provenance and Originality Statement}
+
+\begin{table}[htbp]
+\centering
+\caption{Theoretical provenance and originality grading (A: rigorous proof / B: heuristic
+argument / C: architecture / D: hypothesis) \label{tab:provenance}}
+\small
+\setlength{\tabcolsep}{4pt}
+\begin{tabular}{p{5.0cm}p{3.0cm}p{5.4cm}p{1.2cm}}
+\toprule
+Framework component & Nature & Basis/Proof & Grade \\
+\midrule
+Paradigm postulates $\Pi_1$--$\Pi_4$ & Reference (synthesis) & Transformer\cite{vaswani-2017-attention},
+GPT pretraining\cite{brown-2020-gpt3}, scaling laws\cite{kaplan-2020-scaling,
+hoffmann-2022-chinchilla} & n/a \\
+Absence of state labels $\Pi_5$ & Reference (corollary) & Static corpus + post-hoc parameters & n/a \\
+The four introspective criteria & Reference (synthesis) & Lindsey\cite{lindsey-2026-introspection} & n/a \\
+Privileged self-access criterion & Reference (definition) & Song et al.\cite{song-privileged-2025} & n/a \\
+Online-control functional definition & Reference (definition) & Kammerer \& Frankish\cite{kammerer-frankish-2023} & n/a \\
+Theorem 1 (information gap) & Original + rigorous proof & Conditional mutual information + NFL & A \\
+Theorem 2 (proxy mismatch) & Original (instantiation) & Goodhart/Skalse framework & A \\
+Theorem 3 (closed-loop failure) & Original + rigorous proof & Structural derivation from $\Pi_2,\Pi_3$ & A \\
+Theorem 4 (generation $\neq$ verification) & Original (structural assertion) & $\Pi_4$ + calibrated hallucination theorem & A/B \\
+Theorem 5 (no privileged channel) & Original + rigorous proof & Public computability + Theorem 1b & A \\
+Theorem 6 (no self-model evolution) & Original (structural assertion) & $\Pi_2,\Pi_3$ + plasticity literature & A/B \\
+Calibrated hallucination theorem & Reference (theorem) & Kalai \& Vempala\cite{kalai-vempala-2023-calib} & n/a \\
+Consciousness-theory connections & Reference (synthesis) & HOT\cite{rosendahl-2005}, IIT\cite{albantakis-2023-iit},
+GWT\cite{baars-1993}, \cite{chalmers-2023-conscious, butlin-2023-conscious} & D \\
+Criterion-necessity assertion & Original (philosophical) & Operationalization of cross-theory consensus & D \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\begin{remark}[Grading notes]
+(1) All hypotheses of the grade-A theorems are stated explicitly (the postulates $\Pi_1$--$\Pi_5$
+and standard mathematical results); the conclusions hold strictly within the hypotheses.
+(2) The grade-B parts (Theorem 4c and the ``human introspection premise'' of Theorem 6) rely on
+additional interpretive assumptions about real systems and human cognition; their mathematical
+cores remain grade A. (3) Grade C consists of architectural judgments and does not participate
+in proofs. (4) Grade D consists of philosophical premises: the final adjudication of
+proposition $P$ depends on the grade-D premise ``the five criteria are necessary conditions for
+human introspection''; if a reader rejects that premise, the conclusion should be
+interpreted as ``paradigm $\Pi$ at most achieves weak functional self-report'' (an assertion
+that is itself grade A).
+\end{remark}
+
+\subsection{Outlook}
+
+The theorems offer three directions for future research: (i) \textbf{empirical
+falsification}: design native-regime introspection-detection protocols (no intervention, no
+prompt induction) to test the prediction $I(R;H\mid\theta,c)=0$; (ii) \textbf{in-paradigm
+capability ceiling}: quantitatively characterize the achievable set of ``weak functional
+self-report'' under given corpora, scales, and post-training strategies (combining scaling
+laws\cite{hoffmann-2022-chinchilla} with hallucination lower
+bounds\cite{kalai-vempala-2023-calib}); (iii) \textbf{out-of-paradigm architecture design}:
+mathematical specifications of online plasticity, first-person data streams, and explicit
+self-model objectives (Section 5.3), making ``introspection'' a designable engineering target
+rather than an accidental emergence.
+
+\clearpage

@@ -1,0 +1,117 @@
+"""Uncertainty diagnostics: calibration, surprise under shift, and the depth-error curve.
+
+These are the three measurements the method's claims rest on, and none of them needs the
+planner:
+
+  1. calibration  : does predicted variance track realised squared error? (reliability curve,
+                    Pearson/Spearman correlation, ECE)
+  2. surprise     : is in-distribution surprise lower than shifted surprise? (the controller's
+                    input signal must actually be informative)
+  3. depth curve  : does recursive refinement reduce error monotonically in depth, and how much
+                    of the gain is already obtained at depth 1? (Proposition 2)
+
+    python -m dtajepa.calib --ckpt push4 --id push_eval_T --ood push_eval_I
+"""
+
+from __future__ import annotations
+
+import argparse
+import json
+import os
+
+import numpy as np
+import torch
+
+from . import data as D
+from .envs import corrupt
+from .train import CKPT, batch_tensors, load_model
+
+ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+
+
+@torch.no_grad()
+def collect(model, ck, name, n=384, corrupt_kind=None, level=0.9, seed=0):
+    """Per-transition predicted variance, squared error, and the full depth trace."""
+    obs, act, state, meta = D.load(name)
+    N, T = obs.shape[:2]
+    rng = np.random.default_rng(seed)
+    idx = np.stack([rng.integers(N, size=n), rng.integers(0, T - 7, size=n)], 1)
+    o, p, a = batch_tensors(obs, act, state, idx, device="cpu", pmean=ck["pmean"], pstd=ck["pstd"])
+    o = o.float() / 255.0
+    if corrupt_kind:
+        o2 = torch.empty_like(o)
+        for i in range(o.shape[0]):
+            for t in range(o.shape[1]):
+                frame = (o[i, t].permute(1, 2, 0).numpy() * 255).astype(np.uint8)
+                frame = corrupt(frame, corrupt_kind, level, np.random.default_rng(seed + i * 31 + t))
+                o2[i, t] = torch.as_tensor(frame.transpose(2, 0, 1)).float() / 255.0
+        o = o2
+    B, L = o.shape[:2]
+    k = model.k
+    z = model.encode(o.reshape(B * L, *o.shape[2:]), p.reshape(B * L, -1)).reshape(B, L, -1)
+    u = model.action(a.reshape(B * (L - 1), -1)).reshape(B, L - 1, -1)
+    mean, logvar, depth, lvs, trace = model.predictor(z[:, :k], u[:, :k], u[:, k - 1],
+                                                     return_trace=True)
+    tgt = z[:, k].detach()
+    err = ((mean - tgt) ** 2).sum(-1)
+    var = torch.exp(logvar.squeeze(-1)).sum(-1)
+    # error at every refinement depth
+    depth_err = ((trace - tgt[:, None]) ** 2).sum(-1)          # (B, K_max)
+    return dict(err=err.numpy(), var=var.numpy(), depth_err=depth_err.numpy(),
+                lat_std=float(z.reshape(-1, z.shape[-1]).std(0).mean()))
+
+
+def calibrate(x):
+    """Reliability + correlation between predicted variance and realised squared error."""
+    err, var = x["err"], var_to_std(x["var"])
+    order = np.argsort(var)
+    bins = np.array_split(order, 10)
+    pred = np.array([var[b].mean() for b in bins])
+    real = np.array([err[b].mean() for b in bins])
+    ece = float(np.mean(np.abs(pred - real)) / (real.mean() + 1e-12))
+    pear = float(np.corrcoef(var, err)[0, 1])
+    spear = float(np.corrcoef(np.argsort(np.argsort(var)), np.argsort(np.argsort(err)))[0, 1])
+    return dict(ece_rel=ece, pearson=pear, spearman=spear,
+                bins_pred=pred.tolist(), bins_real=real.tolist())
+
+
+def var_to_std(v):
+    return np.sqrt(np.maximum(v, 0.0))
+
+
+def main():
+    ap = argparse.ArgumentParser()
+    ap.add_argument("--ckpt", default="push4")
+    ap.add_argument("--id", default="push_eval_T")
+    ap.add_argument("--ood", default="push_eval_I")
+    ap.add_argument("--corrupt", default="blur")
+    ap.add_argument("--n", type=int, default=384)
+    ap.add_argument("--out", default="results/calib.json")
+    a = ap.parse_args()
+    torch.set_num_threads(4)
+    model, ck = load_model(a.ckpt)
+    model.eval()
+    res = {}
+    for tag, name, ck_kind in (("in_distribution", a.id, None),
+                               ("unseen_shape", a.ood, None),
+                               ("visual_blur", a.id, a.corrupt)):
+        x = collect(model, ck, name, n=a.n, corrupt_kind=ck_kind)
+        res[tag] = dict(calibrate(x), mean_surprise=float(np.mean(x["err"] / (x["var"] + 1e-6))),
+                        mean_err=float(np.mean(x["err"])), mean_var=float(np.mean(x["var"])),
+                        depth_curve=[float(v) for v in x["depth_err"].mean(0)],
+                        lat_std=x["lat_std"])
+        print(f"{tag:16s} err={res[tag]['mean_err']:.4f} var={res[tag]['mean_var']:.4f} "
+              f"pearson={res[tag]['pearson']:.3f} spearman={res[tag]['spearman']:.3f} "
+              f"ece_rel={res[tag]['ece_rel']:.3f}")
+        print("   depth curve:", " ".join(f"{v:.4f}" for v in res[tag]["depth_curve"]))
+    ratio = res["unseen_shape"]["mean_err"] / max(res["in_distribution"]["mean_err"], 1e-9)
+    res["surprise_ratio_unseen_over_id"] = float(ratio)
+    print(f"unseen/in-distribution error ratio: {ratio:.2f}x")
+    os.makedirs(os.path.join(ROOT, "results"), exist_ok=True)
+    with open(os.path.join(ROOT, a.out), "w") as f:
+        json.dump(res, f, indent=1)
+    print("wrote", os.path.join(ROOT, a.out))
+
+
+if __name__ == "__main__":
+    main()

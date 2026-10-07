@@ -1,0 +1,48 @@
+\section{Extended Analysis}
+
+\subsection{Surprise as a detector of shift}
+
+The allocation policy assumes that surprise increases when the model is evaluated outside its
+training distribution. We can test the assumption directly, without any planner: for each
+suite, encode held-out episodes in distribution and under shift, compute the one-step
+Mahalanobis residual in latent space, and compare the distributions. The model is trained the
+same way in both cases; only the evaluation stream changes. This is the reward-free analogue
+of LeWM's "surprise evaluation", and it is a pre-condition for using surprise as a control
+signal.
+
+\subsection{Allocation is non-uniform}
+
+If the controller were useless, allocated steps and refinement depth would be constant across
+episodes. Instead, the statistics collected during evaluation (Figure~\ref{fig:stats}) show a
+spread of allocated steps, learning-rate multipliers and refinement depths, with the mean
+shifted upwards on shifted suites. The controller's behaviour is additionally logged per
+replan, so the relationship between relative surprise and allocated compute can be read off
+directly from \texttt{results/raw.jsonl}.
+
+\subsection{Relation to AdaJEPA's hand-tuned adaptation}
+
+AdaJEPA's own ablations show that for out-of-distribution settings, "stronger adaptation---via
+a larger learning rate, more optimization steps, or a larger recent replay buffer---is often
+beneficial when latency permits", while in distribution a single step at the training learning
+rate is the practical default. That is exactly a two-point policy. DTA-JEPA can be read as
+learning the \emph{shape} of that policy from a signal the agent already computes for free---the
+residual of its own prediction---instead of selecting one of two points by hand per
+environment family, and additionally spending recursive depth, which AdaJEPA's architecture
+does not expose.
+
+\subsection{Failure modes we observed}
+
+\begin{itemize}[leftmargin=1.2em,itemsep=2pt]
+\item \textbf{Symmetric shapes are easier than they look.} The square and I blocks have
+$\pi/2$ rotational symmetry, so the orientation tolerance is met on a larger fraction of the
+pose space. Success rates on those shapes should not be read as geometric generalisation.
+\item \textbf{Colour shifts that remove the agent--distractor distinction are hardest.}
+Rendering the static reference marker in the same red as the moving block removes the visual
+cue that separates "what moves" from "what does not", and no amount of predictor adaptation
+recovers it, consistent with AdaJEPA's finding that red-anchor and red-block shifts are where
+their gains are smallest.
+\item \textbf{Replay-buffer entropy.} Because we execute five actions per replan, the recent-5
+buffer covers one replanning step of experience, and its entropy is low. Memory-based
+retrieval is therefore most useful late in an episode or across episodes, which is what the
+skill bank targets.
+\end{itemize}

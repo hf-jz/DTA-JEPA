@@ -1,0 +1,92 @@
+\section{Introduction}
+
+\subsection{Background and Significance}
+
+Joint-Embedding Predictive Architectures (JEPAs) have become a leading recipe for
+model-based control from high-dimensional observations: an encoder maps observations to a
+compact latent space, a predictor models the latent dynamics, and a planner---most often
+model predictive control (MPC)---optimises a short action sequence by rolling the predictor
+forward and minimising a latent goal distance \cite{lecun-2022-path,zhou-2025-dinowm,
+sobal-2025-offline,wang-2026-temporal,assran-2025-vjepa2}. The appeal is that planning never
+touches pixels, so the model is cheap, and that training needs no reward labels.
+
+In practice the world model is \emph{frozen} after training, and its usefulness at deployment
+is decided entirely by how well the training distribution covers the test environment. Yet
+test environments shift: objects change shape, cameras change colour balance, noise appears,
+masses and frictions change, and room layouts differ. Under such shifts latent rollouts
+drift, MPC optimises the wrong objective, and success collapses---even for high-capacity
+models \cite{zhou-2025-dinowm,toso-2026-invariant,zhang-2026-hierarchical}.
+
+AdaJEPA \cite{wang-2026-adajepa} made a strong and useful observation: the world model does
+not have to stay frozen. Inside the MPC loop, the transition that results from every executed
+action is a free self-supervised label. AdaJEPA plans, executes an action chunk, takes one
+gradient step on the predictor's last transformer block and the encoder head using the
+observed transition, and replans with the updated model. One step per replan already recovers
+a large fraction of the loss under visual and dynamics shifts, at negligible latency.
+
+\subsection{The limitation we address}
+
+AdaJEPA's adaptation is \emph{uniform}: the same one gradient step, at the same learning
+rate, applied at the same layers, whether the model already predicts the current environment
+well or is being asked about dynamics it has never seen. Three consequences follow.
+
+\begin{enumerate}[leftmargin=1.2em,itemsep=2pt]
+\item \textbf{Misallocated compute.} In-distribution episodes are updated as hard as
+out-of-distribution ones. Adaptation is not free: extra gradient steps can \emph{hurt} when
+the model is already adequate, because they fit the model to a five-transition buffer and move
+it off the pretrained manifold.
+\item \textbf{Misallocated plasticity.} Directly updating the pretrained predictor weights
+offers no structural guarantee that the update is local; the setting where adaptation matters
+most (unseen dynamics) is also the setting where a large step is most damaging.
+\item \textbf{No memory across episodes.} AdaJEPA's evaluation---and its design---reset the
+model at every episode. Everything learned about an environment is discarded when the episode
+ends, so nothing accumulates: the model can never get better at a \emph{family} of
+environments, only at the current one.
+\end{enumerate}
+
+A fourth, subtler issue is architectural. A single feed-forward predictor spends the same
+amount of computation on every prediction. Recent work on reasoning with small networks
+suggests the opposite is better: improve an answer by recursing on it in latent space, with
+deep supervision at every recursion depth, and let the number of recursions depend on
+difficulty \cite{tiny-recursive-2025,hrm-2025,hrm-text-2026}. Difficulty-dependent compute is
+exactly the missing knob for a world model under shift.
+
+\subsection{Approach and contributions}
+
+We propose \textbf{DTA-JEPA}, a dual-timescale recursive adaptive latent world model. Our
+contributions are:
+
+\begin{enumerate}[leftmargin=1.2em,itemsep=2pt]
+\item \textbf{Computational dual timescale (\S\ref{sec:model}).} The predictor is split into a
+slow \emph{S-module} that turns a short latent--action history into a dynamics context $c_t$,
+and a fast \emph{R-module} that recursively refines the next latent
+$\yhat^{(k)} = \yhat^{(k-1)} + g_{\f}([\yhat^{(k-1)},c_t],u_t)$ for $k=1,\dots,K_t$, with deep
+supervision over all depths. The slow module is the pretrained anchor and is never modified
+online; all plasticity lives in a rank-4 LoRA fast parameter set attached to the R-module and
+the encoder head.
+\item \textbf{Uncertainty as a resource allocator (\S\ref{sec:unc}).} A single scalar---the
+Mahalanobis surprise of the observed transition under the model's own predicted
+Gaussian---drives the number of gradient steps $U_t$, the learning-rate multiplier, the
+refinement depth $K_t$, the planning penalty, the memory write priority and the rollback
+decision. Compute is therefore spent where the model is measurably wrong, and saved where it
+is right.
+\item \textbf{Dual memory and safe consolidation (\S\ref{sec:mem}).} An episodic memory of
+high-surprise latent transitions (persistent across episodes) plus a fingerprint-indexed bank
+of fast-parameter snapshots give cross-episode accumulation without catastrophic forgetting;
+an anchor ball on $\f$, a validation-gated rollback and a latent support penalty in the
+planning cost bound the damage any single update can do. Slow parameters are consolidated
+only at episode boundaries under an EWC penalty.
+\item \textbf{Protocol-level replication and empirical comparison (\S\ref{sec:setup},
+\S\ref{sec:results}).} We replicate AdaJEPA's four shift families (shape, visual, dynamics,
+layout) plus a continual environment-switching suite on a self-contained benchmark, and
+compare Frozen, a faithful AdaJEPA re-implementation and DTA-JEPA under an identical planner,
+horizon, replay buffer and episode set, together with five ablations.
+\end{enumerate}
+
+\subsection{What we do not claim}
+
+Our benchmark is not PushT or MuJoCo. It is a physics-based 2D re-implementation built to make
+the \emph{evaluation protocol} comparable---the same shift families, the same segment-based
+goal sampling, the same MPC budget, the same success criteria---rather than the same pixels.
+We therefore report relative comparisons between methods evaluated under identical conditions,
+not absolute numbers transferable to the original benchmark.

@@ -1,0 +1,143 @@
+\section{Formal Reinterpretation of the Concept-Injection Experiments}
+
+This chapter uses the theorems of Chapter 3 to systematically reinterpret the empirical
+results of arXiv:2601.01828\cite{lindsey-2026-introspection}. There are two aims: first, to
+test the falsifiability of the theorems (if the paper's data contradicted the theorems'
+predictions, the theorems would be refuted); second, to show that the ``weak functional
+self-report'' observed by the paper is \textbf{not} evidence of in-paradigm introspective
+capacity but a necessary corollary of the theorems. All cited data come from explicit
+statements in the paper's main text and appendix.
+
+\subsection{The Injected-Thought-Detection Experiment: Why 20\% Success Is a Capability Ceiling, Not a Structural Guarantee}
+
+The paper reports: Claude Opus 4.1 and Opus 4 detect injected thoughts at rates of about 20\%
+under the optimal injection layer and strength; production models produce zero false positives
+over 100 control trials; random vectors elicit ``noticing'' only 9 times out of 100
+trials\cite{lindsey-2026-introspection}.
+
+Reading via Theorem 1b: \textbf{the training objective provides no guarantee of introspective
+accuracy}, so 20\% is not evidence of ``capability masked by noise'' but should be understood as
+a by-product of ``inductive bias happening to cover part of the query space''. Concretely:
+detecting an injected concept requires the model to implement an ``anomaly-detection function''
+(one of the mechanism conjectures the paper lists in Section 10.3.1
+\cite{lindsey-2026-introspection}). That function can \textbf{possibly} be learned because it
+is useful as a \textbf{by-product of text prediction} (predicting anomalous text and detecting
+implausible content are common corpus tasks), not because the training objective rewards
+``faithful reports about introspective states''. Theorem 1a further shows that, in the
+\textbf{unintervened} native regime, the report--state mutual information is zero; the 20\%
+success depends entirely on the experimenter's external injection (artificially altering the
+state and letting the model ``read'' the altered state).
+
+The paper's 20\% is therefore an incidental capability ceiling, attained under \textbf{external
+intervention} and on a \textbf{specific query distribution}, with \textbf{no guarantee} of any
+kind; it is far removed from the assertion of ``in-paradigm introspective capacity''. The paper's
+own phrasing (``highly unreliable and context-dependent'', ``failures of
+introspection remain the norm''\cite{lindsey-2026-introspection}) agrees completely with the
+predictions of
+Theorem 1.
+
+\subsection{Distinguishing ``Thoughts'' from Text: The Public Computability of Consistency-Check Circuits}
+
+The paper's second experiment shows that, under some conditions, models can simultaneously
+report the injected concept and transcribe the input text, with all models performing
+significantly above chance\cite{lindsey-2026-introspection}. The paper attributes this to
+different attention heads retrieving different kinds of information (Section 10.3.2).
+
+Reading via Theorem 5: \textbf{this capacity is publicly computable}. The process by which the
+model ``distinguishes thoughts from text'' is a deterministic function of $(\theta, c, u)$
+($u$ the injected vector, known to the experimenter), so any third party holding these
+quantities can reproduce the same discrimination. This accords with the paper's own caveat
+that ``the mechanism may be shallow and narrow''\cite{lindsey-2026-introspection}. More
+importantly: even if the model \textbf{behaviorally} distinguishes ``thoughts'' from ``text'',
+the basis of its discrimination (the internal attention pattern) lies entirely within the
+read range of an external probe; there is no private channel in the information-theoretic
+sense, and the privileged-access criterion\cite{song-privileged-2025} fails (Theorem 5b).
+
+\subsection{The Prefill-Detection Experiment: The Statistical Nature of Causal Attribution}
+
+The paper's most dramatic result is the ``bread'' experiment\cite{lindsey-2026-introspection}:
+when the model's output is forcibly changed to ``bread'', it denies that the output was
+intentional; but when the experimenter injects the ``bread'' concept vector into the activations
+before the prefill, the model instead admits that the output was intentional and
+\textbf{fabricates after the fact} a rationalization.
+
+Joint reading via Theorems 4 and 5: the model's ``intentionality judgment'' is a statistical
+adjudication by a \textbf{consistency-check circuit} (the paper's Section 10.3.3 cites the
+concordance-heads mechanism\cite{kamath-2025-concordance}) over $(\theta, c, u)$, comparing
+``the intentionality representation in prior activations'' with ``the likelihood of the actual
+output''. Injecting the ``bread'' vector changes the statistical input and therefore flips the
+judgment. This corresponds precisely to the key distinction emphasized repeatedly
+above: ``\textbf{statistical causal association, not phenomenological subjective
+experience}''. The model does not ``experience'' intentionality; it merely runs a statistical
+classifier (one that injection can fool). The fabricated post-hoc rationalization is exactly
+what Theorem 4 predicts: the model cannot verify the grounding of its own statements (no
+verifier node) and can only invoke ``explanation text patterns'' learned from the corpus to
+complete the narrative.
+
+\subsection{Zero Net Benefit for Base Models: Post-Training Is Only an Optimization of Text Patterns}
+
+The paper reports that base (pretrained) models generally have high false-positive rates on
+the injection-detection task and net benefit (true-positive rate minus false-positive rate)
+at or below zero; post-training strategies significantly affect introspective-task
+performance, with production models ``reluctant to participate in introspective exercises''
+while refusal-avoiding (``helpful-only'') variants perform better\cite{lindsey-2026-introspection}.
+
+Reading via Theorem 2: the pretraining objective is pure text likelihood, meaning statistical
+learning of ``introspective-style text''; base models treat both ``detecting the injection'' and
+``saying something'' as text patterns, hence high false positives and poor grounding (zero net
+benefit). The reward signals introduced at the post-training stage (RLHF-type) are still, in
+essence, shaping of \textbf{textual behavior} (answering like an ``introspective assistant''),
+not supervision of ``faithful state reporting''; they merely redistribute probability mass
+over text patterns. The paper's observation that ``helpful-only variants perform better''
+shows precisely that what is optimized is never \textbf{grounding} but \textbf{textual
+behavior that looks like introspection}. This is exactly the prediction of Theorem 2b:
+optimizing a textual objective can systematically deviate from faithful state reporting.
+
+\subsection{Layer Sensitivity: Multiple Narrow Circuits, Not a Unified Introspective Mechanism}
+
+The paper finds that different introspective behaviors have different sensitivities to the
+injection layer (the optimal layer for detecting injected thoughts lies at about two-thirds
+depth, while that for prefill detection is shallower)\cite{lindsey-2026-introspection}, and
+infers that ``introspection is not supported by a single mechanism''.
+
+Reading via Theorem 1b: since the training objective does not reward a unified introspective
+mechanism, any observed introspective-like behavior must be a by-product of \textbf{several
+independent, narrow circuits that serve text prediction}, whose layer distributions are
+naturally different. This agrees completely with the paper's Section 10.3 ``simplest mechanism''
+conjectures (anomaly-detection circuits, retrieval heads, consistency-check circuits,
+salience-marking circuits\cite{lindsey-2026-introspection}), and provides a theoretical basis
+for the \textbf{necessity} of these conjectures: the paradigm does not reward a unified
+mechanism, so what is observed must be an assemblage of circuits.
+
+\subsection{The Paper's Self-Reported Limitations versus the Theorems}
+
+\begin{table}[htbp]
+\centering
+\caption{Correspondence between the paper's self-reported limitations and the theorems
+\label{tab:paper-thm}}
+\begin{tabular}{p{7.2cm}p{6.2cm}}
+\toprule
+Self-reported limitation (quoted) & Corresponding theorem \\
+\midrule
+``The abilities we observe are highly unreliable'' & Theorem 1b: no PAC guarantee of any kind \\
+``Failures of introspection remain the norm'' & Theorem 1a: zero mutual information in the native regime \\
+``the mechanisms underlying our results could still be rather shallow and narrowly specialized'' & Theorem 1b + Section 4.5: narrow-circuit by-products \\
+``Our concept injection protocol places models in an unnatural setting unlike those they face in training or deployment'' & Theorem 1a: capacity depends on external intervention \\
+``Demonstrating metacognitive representations is difficult to do directly, and we do not do so in this work'' & Theorem 4: the generation objective does not distinguish with/without metarepresentation \\
+``we do not seek to address the question of whether AI systems possess human-like self-awareness or subjective experience'' & Theorem 5: no privileged channel (first-person access unavailable) \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\begin{remark}[Falsifiability statement]
+The consistency between the theorems of this report and the paper's data is not circular: the
+derivation of the theorems depends only on the postulates $\Pi_1$--$\Pi_5$ and standard
+mathematical results (information theory, NFL, Goodhart), not on any of the paper's
+experimental data; the paper's data serve here only as \textbf{tests}. If a future system
+satisfying all postulates stably achieved $I(R;H\mid\theta,c) > 0$ in the native regime
+(e.g., a reliable description of its own activations without any intervention), Theorem 1a
+would be refuted. We consider this impossible within the
+postulates, but we would welcome such experimental evidence.
+\end{remark}
+
+\clearpage

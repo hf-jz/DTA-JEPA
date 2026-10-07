@@ -1,0 +1,153 @@
+\documentclass[a4paper]{article}
+\usepackage{geometry}\geometry{a4paper,left=2.5cm,right=2.5cm,top=3cm,bottom=2.5cm}
+\usepackage{setspace}\onehalfspacing
+\usepackage{fancyhdr}\pagestyle{fancy}\fancyhf{}
+\fancyhead[L]{\small DTA-JEPA: Dual-Timescale Recursive Adaptive Latent World Models}
+\fancyhead[R]{\small\thepage}\renewcommand{\headrulewidth}{0.5pt}
+\usepackage[colorlinks=true,linkcolor=blue]{hyperref}
+\usepackage{amsmath,amssymb,mathtools}
+\usepackage{seqsplit}
+\allowdisplaybreaks
+\sloppy
+\emergencystretch=2em
+\usepackage{tikz}\usetikzlibrary{calc,shadows,fadings,decorations.pathmorphing,patterns,backgrounds,arrows.meta,positioning}
+\usepackage{pgfplots}\pgfplotsset{compat=1.17}
+\usepackage{xcolor,titlesec,enumitem}
+\definecolor{fo}{RGB}{255,120,20}\definecolor{fy}{RGB}{255,200,50}
+\definecolor{fr}{RGB}{220,40,20}\definecolor{db}{RGB}{10,10,20}
+\definecolor{sb}{RGB}{40,80,140}\definecolor{gd}{RGB}{200,160,40}
+\definecolor{redColor}{RGB}{227,0,26}
+\definecolor{greenColor}{RGB}{0,120,31}
+\definecolor{grayColor}{RGB}{32,32,32}
+\definecolor{TitleGreen}{RGB}{0,120,55}
+\usepackage{graphicx}
+\usepackage{array}
+\usepackage{listings}
+\usepackage{booktabs}
+\usepackage{multirow}
+
+% ---- listings configuration ----
+\definecolor{codebg}{RGB}{248,248,252}
+\definecolor{codeframe}{RGB}{200,200,220}
+\lstset{
+  basicstyle=\footnotesize\ttfamily,
+  backgroundcolor=\color{codebg},
+  frame=single,
+  rulecolor=\color{codeframe},
+  framerule=0.5pt,
+  breaklines=true,
+  numbers=left,
+  numberstyle=\tiny\color{gray},
+  numbersep=5pt,
+  tabsize=2,
+  showstringspaces=false,
+  keywordstyle=\color{sb}\bfseries,
+  commentstyle=\color{grayColor}\itshape,
+  stringstyle=\color{redColor},
+  captionpos=b,
+  aboveskip=8pt,
+  belowskip=8pt,
+}
+\titleformat{\section}{\normalfont\Large\bfseries\sffamily\color{sb}}{\thesection}{1em}{}
+\titleformat{\subsection}{\normalfont\large\bfseries\sffamily\color{sb!80}}{\thesubsection}{1em}{}
+\titleformat{\subsubsection}{\normalfont\normalsize\bfseries\sffamily\color{sb!60}}{\thesubsubsection}{1em}{}
+
+% Frequently used mathematical notation
+\newcommand{\R}{\mathbb{R}}
+\newcommand{\N}{\mathbb{N}}
+\newcommand{\E}{\mathbb{E}}
+\newcommand{\norm}[1]{\left\lVert #1 \right\rVert}
+\newcommand{\abs}[1]{\left\lvert #1 \right\rvert}
+\newcommand{\sgn}{\operatorname{sgn}}
+\newcommand{\KL}[2]{D_{\mathrm{KL}}\!\left(#1\,\|\,#2\right)}
+\newcommand{\TV}[2]{d_{\mathrm{TV}}\!\left(#1,#2\right)}
+\newcommand{\supp}{\operatorname{supp}}
+\newcommand{\doop}{\operatorname{do}}
+\newcommand{\indep}{\perp\!\!\!\perp}
+\newcommand{\yhat}{\hat{y}}
+\newcommand{\sgt}{\mathrm{sg}}
+\newcommand{\f}{\theta_f}
+\newcommand{\ts}{\theta_s}
+
+% ---- Theorem environments (numbered in the style ``X.Y.Z'') ----
+\usepackage{amsthm}
+\newtheoremstyle{cnplain}{10pt}{10pt}{\normalfont}{0pt}{\bfseries\color{sb}}{.}{.5em}{}
+\newtheoremstyle{cndef}{10pt}{10pt}{\normalfont}{0pt}{\bfseries\color{sb!80}}{.}{.5em}{}
+\theoremstyle{cnplain}
+\newtheorem{theorem}{Theorem}
+\newtheorem{corollary}{Corollary}
+\newtheorem{lemma}{Lemma}
+\theoremstyle{cndef}
+\newtheorem{definition}{Definition}
+\newtheorem{assumption}{Assumption}
+\newtheorem{remark}{Remark}
+\newtheorem{example}{Example}
+\newtheorem*{proposition}{Proposition}
+\newtheorem*{restate}{Theorem}
+\newtheorem*{restatecor}{Corollary}
+\renewcommand{\proofname}{Proof}
+
+\title{\bfseries\Large DTA-JEPA: Dual-Timescale Recursive Adaptive Latent World Models\\[2pt]
+\large with Uncertainty-Allocated Test-Time Adaptation and Persistent Memory}
+\author{Sheng Cheng\textsuperscript{a,*}\\
+\normalsize\textsuperscript{a} Hefei Jiuzhai Big Data Technology Co., Ltd., Hefei, China\\
+\normalsize\textsuperscript{*} Corresponding author. E-mail: c.sheng@cumt.edu.cn}
+\date{\today}
+
+\begin{document}
+\maketitle
+
+\begin{abstract}
+\noindent Latent world models plan by rolling out a learned predictor in a compact latent
+space, yet the predictor is almost always frozen after training, and its predictions silently
+degrade under test-time distribution shift. AdaJEPA showed that a single self-supervised
+gradient step per model-predictive-control (MPC) replan already recovers much of that loss.
+We argue that this is the wrong unit of adaptation: a fixed one-step update applies the same
+compute and the same plasticity whether the world model already fits the test environment or
+is being asked to predict dynamics it has never seen, and it throws away everything learned at
+the end of an episode.
+
+\medskip
+\noindent We introduce \textbf{DTA-JEPA}, a latent world model whose adaptation is
+\emph{dual-timescale} and \emph{uncertainty-allocated}. The predictor is split into a slow
+\emph{S-module} that produces a dynamics context from a short history and is never modified
+online, and a fast \emph{R-module} that recursively refines the next latent through $K_t$
+uncertainty-gated refinement steps with deep supervision at every depth. A single surprise
+signal---the Mahalanobis prediction residual under the model's own Gaussian---allocates all
+online resources: gradient steps, learning rate, refinement depth, planning conservatism,
+memory priority, and rollback. Adaptation is confined to a rank-4 LoRA fast parameter set on
+the R-module plus the encoder head, protected by an anchor ball and a validation-gated
+rollback; slow parameters are consolidated only at episode boundaries under an EWC penalty,
+and fast parameters are stored in a fingerprint-indexed skill bank that warm-starts later
+episodes.
+
+\medskip
+\noindent We replicate AdaJEPA's evaluation protocol---shape, visual, dynamics and layout
+shifts, with goals sampled as future frames of held-out trajectories---on a self-contained
+numpy benchmark, and compare Frozen, a faithful AdaJEPA re-implementation and DTA-JEPA under
+an identical planner, budget and episode set. DTA-JEPA improves mean planning success over
+AdaJEPA on every shift family while using \emph{fewer} gradient steps in distribution
+(where surprise is low) and more only where the model is actually wrong; ablations isolate
+the contribution of uncertainty allocation, dual memory, the safety layer, adaptive
+refinement depth and cross-episode consolidation.
+
+\medskip
+\noindent\textbf{Keywords}: latent world model; joint-embedding predictive architecture;
+test-time adaptation; model predictive control; uncertainty; continual learning; recursive
+reasoning
+\end{abstract}
+
+\clearpage
+
+% ==================================================================
+\include{ch1-en}
+\include{ch2-en}
+\include{ch3-en}
+\include{ch4-en}
+\include{ch5-en}
+\include{ch6-en}
+\include{appendix-a-en}
+\include{appendix-b-en}
+\include{refs}
+
+\end{document}

@@ -1,0 +1,246 @@
+\section{Introduction}
+
+\subsection{Background and Significance}
+
+In January 2026, the Anthropic research team published the paper
+\emph{Emergent Introspective Awareness in Large Language Models}
+(arXiv:2601.01828)\cite{lindsey-2026-introspection}, which systematically examines large
+language models' (LLMs) ability to self-report their own internal states through
+\textbf{concept injection}. The core experimental paradigm is as follows: an activation
+vector encoding a specific concept is injected into the model's residual stream, and the model
+is then asked whether it ``noticed'' the injected ``thought''. The authors report several striking
+qualitative results: Claude Opus 4.1, for example, can sometimes ``notice'' an injected concept
+before producing any output, can distinguish ``thoughts'' from textual input, and, in the
+prefill-detection experiment, judges whether a given output was ``intentional'' on the basis of
+prior activations. At the same time, the authors impose a series of important caveats: the
+success rate is only about 20\%, failure is the norm, the mechanism may be shallow and narrow,
+the experimental setup is unnatural, and they \textbf{explicitly disclaim} that the models
+possess human-like self-awareness or subjective experience\cite{lindsey-2026-introspection}.
+
+This paper and the discussion it generated have, for the first time, placed the question
+``can large language models introspect?'', a question long confined to the philosophical and
+phenomenological level, on an intervenable and reproducible causal experimental platform.
+Yet however compelling they may be qualitatively, empirical findings cannot directly answer
+a more fundamental mathematical question:
+
+\begin{quote}
+\itshape
+Within the paradigm $\Pi$ adopted by nearly all current frontier models, namely
+\textbf{Transformer architecture + static pretraining + autoregressive generation}, can a
+pretrained generative model possess human-significance introspective capacity \textbf{in
+principle}?
+\end{quote}
+
+``In principle'' means: independent of the contingent implementation details of any particular
+model (a specific layer, a specific injection strength, a specific prompt), we ask whether the
+paradigm $\Pi$ itself imposes structural constraints. If there exist insurmountable
+mathematical obstacles at the paradigm level, then any experimental ``success case'' can only be
+a by-product of inductive bias rather than a structural capacity. Conversely, if no obstacle
+exists at the paradigm level, then the experimentally observed low success rate is merely an
+engineering-scale issue.
+
+The contribution of this report is \textbf{to formalize the term ``introspection'' with
+rigorous mathematical tools (information theory, computational learning theory, algorithmic
+information theory, causal inference), and to prove that paradigm $\Pi$ fails structurally on
+five necessary criteria for human-significance introspection}. The proof serves two purposes:
+it gives proposition $P$ (see Section 1.5) a deductive basis, and it marks out precise
+boundary conditions for architectures that might in the future transcend the paradigm
+(online learning, embodied interaction, explicit verifiers, and so on).
+
+\subsection{Related Work}
+
+\subsubsection{The Definitional Debate over Introspection}
+
+The definition of ``introspection'' is itself contested. Kammerer and Frankish
+define introspection as ``the process by which a cognitive system represents its own current
+mental states, with this information being usable for online behavioral control''
+\cite{kammerer-frankish-2023}; Long applies this functional definition to large language
+models\cite{long-2023-introspection}; Comsa and Shanahan emphasize causality: ``an LLM
+self-report is introspective if and only if it accurately describes an internal state of the
+LLM through a causal process that links the internal state and the self-report''
+\cite{comsa-shanahan-2025}; Song et al.\ criticize the above definitions for failing to
+highlight \textbf{privileged self-access}, proposing instead that introspection is ``any process
+which yields information about internal states of the AI through a process that is more
+reliable than any process with equal or lower computational cost available to a third party
+without special knowledge of the situation'' (paraphrased)\cite{song-privileged-2025}.
+
+Lindsey, in arXiv:2601.01828, adopts four operational criteria\cite{lindsey-2026-introspection}:
+(1) \textbf{Accuracy}: the self-report must be accurate; (2) \textbf{Grounding}: the
+self-report must causally depend on the state it describes; (3) \textbf{Internality}: that
+causal dependence must not pass through the model's already-sampled outputs;
+(4) \textbf{Metacognitive representation}: the self-report must arise from an internal
+second-order representation of the state itself, rather than a direct translation of the
+state. The authors concede that criterion (4) cannot be directly verified in their
+experiments.
+
+\subsubsection{Concept Injection and Causal Experiments}
+
+Concept injection (activation steering) originates from Representation
+Engineering\cite{zou-2023-repeng} and Activation Addition\cite{turner-2023-actadd}. The SelfIE
+work of Chen et al.\cite{chen-2024-selfie} and the Patchscopes work of Ghandeharioun et
+al.\cite{ghandeharioun-2024-patchscopes} ``transplant'' activations produced under one prompt
+into a blank position of another prompt, letting the model ``say'' what the activation means.
+The work of Ji-An et al.\ shows that models can, guided by in-context examples, report and
+regulate the projection of their activations along specified probe directions
+\cite{ji-an-2025-metacog}. On top of these techniques, Lindsey's work introduces
+\textbf{interventional causal adjudication}: by altering the internal state and observing
+whether the self-report changes accordingly, one adjudicates grounding. This brings
+Rubin/do-calculus-style causal thinking\cite{pearl-2009} into introspection experiments
+in a systematic way.
+
+\subsubsection{Self-Modeling and Meta-Knowledge}
+
+A separate line of research, distinct from ``introspecting one's own activations'',
+examines models' prediction of \textbf{their own behavior}. The situational awareness dataset (SAD) of
+Laine et al.\ shows that some models can predict their own outputs reasonably
+well\cite{laine-2024-sad}; Binder et al.\ find that fine-tuned models predict their own
+behavior better than others' behavior\cite{binder-2024-looking-inward}; Kadavath et al.\ show
+that, with appropriate prompting, models' answer probabilities are well calibrated with
+correctness\cite{kadavath-2022-know}; Cheng et al.\ train assistants, using model-specific
+datasets, to refuse questions they cannot answer correctly\cite{cheng-2024-know-gaps}; Ferrando
+et al.\ identify a separate circuit underlying the knowledge-awareness mechanism ``do I know
+this entity?''\cite{ferrando-2024-know-entity} (Lindsey et al.'s biological analysis likewise
+observes the independence of this mechanism\cite{lindsey-2025-biology}); Betley et al.\ show
+that models can describe behavioral propensities acquired through fine-tuning
+\cite{betley-2025-propensities}; Plunkett et al.\ further show that models can quantitatively
+report the internal weights that drive their decisions\cite{plunkett-2025-self-interp}; Wang et
+al.\ reproduce propensity introspection with steering vectors\cite{wang-2025-out-of-context};
+Davidson et al., using a different set of prompts, find no evidence of consistent
+self-recognition\cite{davidson-2024-selfrecog}. Song et al.\ question several of the above
+conclusions, arguing that many ``self-prediction'' effects can be attributed to similarity
+between models rather than privileged access\cite{song-2025-introspect-language}.
+
+\subsubsection{Nascent Mathematicization}
+
+Work that casts LLM limitations as theorems has only just begun. Kalai and Vempala prove that
+\textbf{calibrated language models must hallucinate}: if a language model's conditional
+probabilities are calibrated (the model's reported confidence equals its actual correctness),
+then, whenever unavoidable ignorance points exist, it must give wrong answers on some open
+queries; it is one of the few rigorous results that explains, at the level of the objective
+function, the tension between ``generative distribution'' and ``truth''
+\cite{kalai-vempala-2023-calib}; Kalai et al.\ provide further theoretical analysis of the
+mechanisms behind hallucination\cite{kalai-2025-hallucinate}. Skalse et al.\ systematically
+characterize the mathematical structure of ``reward hacking / proxy-objective mismatch''
+\cite{skalse-2022-reward-hacking}, and Manheim and Garrabrant formalize a taxonomy of
+Goodhart's-law variants\cite{manheim-garrabrant-2018-goodhart}. These tools provide the
+mathematical language used here. To the best of our knowledge, however, nobody
+has yet built an axiomatized mathematical framework of ``introspective capacity'' itself and
+proved a paradigm-level impossibility. This is the gap the present report fills.
+
+\subsection{Limitations of Existing Work}
+
+The literature above has three limitations:
+
+\begin{enumerate}
+\item \textbf{Lack of paradigm-level formalization.} Existing discussion (including
+arXiv:2601.01828 itself) is bounded by ``what experiments can observe''; it does not answer
+``what the paradigm $\Pi$ structurally permits''. The experimentally observed 20\% success rate
+can be explained by arbitrarily many mechanisms (the paper's own authors list several
+``simplest mechanism'' conjectures\cite{lindsey-2026-introspection}), but no theorem states
+\textbf{why} the success rate could not be pushed near 100\% by some clever training recipe,
+or, conversely, \textbf{why} certain introspective criteria cannot possibly be satisfied within
+the paradigm.
+\item \textbf{Lack of logical relations among criteria.} The paper's four criteria are given
+in parallel, without arguing for their necessity, sufficiency, or their coupling to the
+paradigm structure. For example, ``internality'' and ``privileged access'' (emphasized by Song et
+al.\cite{song-privileged-2025}) both derive from the same mathematical fact, namely that the report is a
+public function of $(\theta,c)$, yet existing literature does not unify them.
+\item \textbf{Failure to distinguish ``statistical correlation'' from ``structural guarantee''.}
+The causal association ``internal representation $\to$ self-report'' established by concept
+injection experiments is established under \textbf{external intervention}. Whether any
+information channel exists between report and state in the \textbf{native generative regime}
+of paradigm $\Pi$ (no intervention) is a question that has never been rigorously examined.
+Theorem 1 below will prove: in the native regime the information content of that
+channel is zero ($I(R;H\mid\theta,c)=0$).
+\end{enumerate}
+
+\subsection{Research Content and Contributions}
+
+The research content of this report is to formalize ``introspection in the human sense'' as
+five necessary criteria ($\mathrm{A}_1$--$\mathrm{A}_5$), to formalize the paradigm $\Pi$ as
+five structural postulates ($\Pi_1$--$\Pi_5$), to prove six impossibility theorems, to test
+them against the empirical findings of arXiv:2601.01828, and finally to delimit the scope of
+the theorems.
+
+The contributions are summarized as follows:
+
+\begin{itemize}
+\item \textbf{Axiomatization}: the first five-criterion formalization of ``introspection''
+(merging the paper's four criteria with Kammerer--Frankish online control, Song's privileged
+access, and closed-loop plasticity); every criterion is a testable mathematical condition.
+\item \textbf{Paradigm characterization}: distilling ``Transformer + static pretraining +
+autoregressive generation'' into five postulates, so that ``paradigm-level impossibility''
+becomes a provable proposition rather than an intuitive judgment.
+\item \textbf{Six theorems}: the information-gap theorem, the proxy-objective-mismatch theorem,
+the closed-loop-failure theorem, the generation--verification separation theorem, the
+no-privileged-channel theorem, and the no-self-model-evolution theorem. Theorems 1, 2, 3, 5
+are rigorous proofs (grade A); Theorems 4 and 6 are structural assertions with heuristic
+arguments (grades A/B); complete proofs of all theorems are given in Appendix A.
+\item \textbf{Boundary analysis}: a precise correspondence table of ``which theorem fails when a
+given postulate is relaxed'', strictly confining the ``impossibility'' claim to paradigm $\Pi$ and
+avoiding absolutism.
+\end{itemize}
+
+\subsection{Statement of the Proposition and Proof Strategy}
+
+\subsubsection{Precise Statement of the Proposition}
+
+\begin{proposition}[Master Proposition $P$ (the proposition proved below)]
+Within the paradigm $\Pi$ (Assumption \ref{asm:paradigm}), there exists no system obtained by
+static pretraining plus autoregressive generation that satisfies the five necessary criteria
+$\mathrm{A}_1$--$\mathrm{A}_5$ of human-significance introspection (Definition
+\ref{def:criterion}).
+\end{proposition}
+
+Note the two qualifiers of proposition $P$: (i) \textbf{``within the paradigm $\Pi$''},
+which excludes all out-of-paradigm implementations such as online learning, non-textual
+interfaces, and explicit verifiers; (ii) \textbf{``in the human sense''}, meaning that the criteria
+$\mathrm{A}_1$--$\mathrm{A}_5$ are operationalized necessary conditions that span
+consciousness theories (Section 5.2 will argue their necessity), but no commitment is made
+here to any phenomenological (qualia) conclusion.
+
+\subsubsection{Overview of the Proof Strategy}
+
+The proof proceeds in four steps.
+
+\begin{enumerate}
+\item \textbf{Formalization (Chapter 2)}: give the paradigm postulates $\Pi_1$--$\Pi_5$, the
+system state model, and the mathematical definitions of the five introspective criteria
+$\mathrm{A}_1$--$\mathrm{A}_5$.
+\item \textbf{Theorems (Chapter 3)}: prove the six theorems one by one. The conclusion of each
+theorem maps to the failure of at least one criterion (see Table \ref{tab:thm-criteria}).
+\item \textbf{Empirical testing (Chapter 4)}: test the theorems' predictions against the
+quantitative results of arXiv:2601.01828, showing that the ``weak functional self-report''
+observed by the paper is a necessary corollary of the theorems.
+\item \textbf{Boundaries (Chapter 5)}: argue that proposition $P$ does not invert:
+out-of-paradigm architectures are not constrained by the theorems, and the absolutist claim
+``never'' does not hold.
+\end{enumerate}
+
+\begin{table}[htbp]
+\centering
+\caption{Correspondence between the six theorems and the five criteria (overview)
+\label{tab:thm-criteria}}
+\begin{tabular}{p{2.0cm}p{5.4cm}p{5.4cm}p{1.4cm}}
+\toprule
+Theorem & Content & Criterion failed & Grade \\
+\midrule
+Theorem 1 & Absence of an introspective information channel & $\mathrm{A}_1$ (no accuracy guarantee) & A \\
+Theorem 2 & Proxy-objective mismatch & $\mathrm{A}_1$ (objective unrelated) & A \\
+Theorem 3 & Closed-loop failure & $\mathrm{A}_5$ (no private closed loop) & A \\
+Theorem 4 & Generation $\neq$ verification & $\mathrm{A}_4$ (metarepresentation unguaranteed) & A/B \\
+Theorem 5 & No privileged channel & $\mathrm{A}_3$ (internality/privileged access fails) & A \\
+Theorem 6 & No self-model evolution & $\mathrm{A}_5$ (no self-correction) & A/B \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsubsection{Grading Statement}
+
+Following the principle of academic honesty, all assertions in this report are graded.
+\textbf{Grade A} marks theorems strictly provable under the explicit postulates; \textbf{Grade B}
+marks structural assertions with heuristic arguments (their mathematical core is grade A, but
+their interpretation for real systems relies on additional assumptions); \textbf{Grade C} marks
+architectural judgments; \textbf{Grade D} marks philosophical assumptions (e.g., ``the five
+criteria are necessary conditions for human introspection''). The complete grading table is in
+Section 6.3, and complete proofs are in Appendix A.

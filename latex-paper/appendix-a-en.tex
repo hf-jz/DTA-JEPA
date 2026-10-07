@@ -1,0 +1,467 @@
+\appendix
+\section{Mathematical Proofs of the Original Theory}
+
+This appendix gives the complete proofs of all theorems of Chapter 3 (the grade-A rigorous
+proofs and the mathematical cores of the grade-B arguments). All hypotheses are stated
+explicitly, and the scope of each conclusion is indicated. Notation and standard tools are
+collected in Appendix B.
+
+\subsection{Complete Proof of Theorem 1}
+
+\subsubsection{Theorem 1a: Zero Mutual Information in the Native Regime}
+
+\begin{restate}[Theorem 1a]
+Let $\mathcal{I}$ satisfy $\Pi_1$--$\Pi_5$. For any introspection query $q$ and any time $t$,
+set $c = c_{\le t}$, $H = \Phi_\theta(c)$, and $R \sim p_\theta(\cdot \mid c)$ (sampling
+noise $\xi$ independent of $(\theta, c)$). Then
+\begin{equation}
+I\!\left(R;\,H \mid \theta, c\right) = 0 .
+\label{eq:a-thm1a}
+\end{equation}
+\end{restate}
+
+\begin{proof}
+By Definition \ref{def:forward}, $H = \Phi_\theta(c)$ is a \textbf{deterministic function} of
+$(\theta, c)$. Consequently, given $(\theta, c)$, the distribution of $H$ is degenerate (a point
+mass
+at $\Phi_\theta(c)$), the conditional entropy satisfies $H(H \mid \theta, c) = 0$, and $H$ is
+conditionally independent of any other variable given $(\theta, c)$ (conditional independence
+of a degenerate variable is trivial: for any event $E$,
+$P(E, H \mid \theta, c) = P(E \mid \theta, c) \cdot \mathbf{1}\{H = \Phi_\theta(c)\}$).
+
+The report $R$ is generated as $R \sim p_\theta(\cdot \mid c)$, whose distribution depends
+only on $(\theta, c)$. Expanding the conditional mutual information by definition:
+\begin{align}
+I\!\left(R; H \mid \theta, c\right)
+&= H\!\left(R \mid \theta, c\right) - H\!\left(R \mid \theta, c, H\right) \notag\\
+&= H\!\left(R \mid \theta, c\right) - H\!\left(R \mid \theta, c\right)
+= 0 ,
+\label{eq:a-thm1a-proof}
+\end{align}
+where the second equality holds because $H$ is a deterministic function of $(\theta,c)$:
+conditioning on $H$ does not change the conditional distribution of $R$, i.e.,
+$p(R \mid \theta, c, H) = p(R \mid \theta, c)$ (the value of $H$ is already determined by
+$(\theta, c)$ and carries no additional randomness). $\square$
+\end{proof}
+
+\begin{remark}[Scope of Theorem 1a]
+Theorem 1a covers only the \textbf{native regime}: the report $R$ is sampled by $p_\theta$
+from the context $c$, with no external injection. Concept-injection experiments do
+\textbf{not} belong to the native regime: the injected activation $u$ modifies the forward
+function ($H' = \Phi_\theta(c; u)$), which is equivalent to incorporating $u$ into the
+conditioning; then $I(R; H' \mid \theta, c, u)$ can be positive, but that channel is opened
+by the \textbf{intervener}, who knows $u$ (the public computability of Theorem 5).
+\end{remark}
+
+\subsubsection{Theorem 1b: No PAC Guarantee for Introspective Accuracy}
+
+\begin{restate}[Theorem 1b]
+Let $\mathcal{I}$ satisfy $\Pi_1$--$\Pi_5$, with the report produced by greedy decoding
+($R(\theta,c) = \arg\max_y p_\theta(y\mid c)$, the decoding scheme used for the paper's
+qualitative examples). For any training algorithm $A$, any $\varepsilon \in (0, \tfrac12)$,
+and any query distribution $\mu$ (with nontrivial support), there exist a corpus $D$ and two
+legal evaluation mappings $O^{*}, O^{*}_0$ (Definition \ref{def:oracle}) such that
+$\theta = A(D)$ satisfies
+\begin{equation}
+\mathcal{R}_{\mathrm{int}}^{O^{*}}(\theta) \;=\; \E_{c \sim \mu}\!\left[ \ell\!\left(R(\theta,c), O^{*}(\theta,c)\right) \right]
+\;\ge\; 1 - \varepsilon ,
+\label{eq:a-thm1b}
+\end{equation}
+while $\mathcal{R}_{\mathrm{int}}^{O^{*}_0}(\theta) = 0$.
+In other words: \textbf{the ``introspective accuracy'' of the same model, produced by the same
+training
+run, can be moved arbitrarily by the choice of the evaluation mapping (from $0$ to
+$1-\varepsilon$); training constrains no value of the introspective risk.}
+Note: if one insists on random sampling ($R \sim p_\theta(\cdot\mid c)$), then for any $O^{*}$,
+$\mathcal{R}_{\mathrm{int}} \le \E_c[1 - \max_y p_\theta(y\mid c)]$ (a function of the
+model's peakedness), and this upper bound is likewise unconstrained by the training objective;
+the ``no guarantee'' conclusion is unchanged.
+\end{restate}
+
+\begin{proof}
+\textbf{Step 1: The training loss does not constrain $O^{*}$.} Under $\Pi_5$, the training
+signal consists only of texts; the evaluation mapping $O^{*}$ (Definition \ref{def:oracle})
+is not part of the training signal and does not influence the loss
+$\ell(\theta) = \E_{x \sim D}[-\log p_\theta(x)]$. So $O^{*}$ can be chosen freely, in
+particular adversarially with respect to the model, without changing $\theta$ or
+$\ell$. (For any parameters $\theta_1, \theta_2 \in \Theta$ with equal likelihood on $D$,
+$\ell(\theta_1) = \ell(\theta_2)$ while $O^{*}(\theta_1, \cdot)$ and
+$O^{*}(\theta_2, \cdot)$ can be arbitrarily different, because the domain of $O^{*}$
+contains $\theta$ and $\ell$ does not depend on $O^{*}$.)
+
+\textbf{Step 2: The attainable range of the introspective risk.} Under greedy decoding, for a
+fixed $\theta$, the report $\widehat{R}(\theta,c) := \arg\max_y p_\theta(y\mid c)$ is a
+deterministic function of $(\theta,c)$. Take $O^{*}$ to contradict $\widehat{R}$ everywhere on
+$\mu$: then $\mathcal{R}_{\mathrm{int}} = 1$; take $O^{*} \equiv \widehat{R}$ (the
+``self-report is truth'' convention): then $\mathcal{R}_{\mathrm{int}} = 0$. By Step 1, both
+conventions are legal and unconstrained by training: the introspective risk is attainable
+anywhere in $[0,1]$, and \textbf{training provides neither a lower nor an upper bound}. This
+is exactly the substance of the No-Free-Lunch argument (Appendix B.3): for any algorithm $A$,
+its product $\theta$ and the evaluation convention $O^{*}$ are statistically uncoupled, so no
+guarantee of any kind can hold.
+
+\textbf{Step 3: From the full range to $1-\varepsilon$.} Relax ``contradict everywhere'' to
+``contradict on a $\mu$-set $Q_{\varepsilon}$ of measure $\ge 1-\varepsilon$, agree
+elsewhere'': then
+$\mathcal{R}_{\mathrm{int}}^{O^{*}}(\theta) \ge \mu(Q_{\varepsilon}) \cdot 1
+\ge 1 - \varepsilon$; simultaneously $O^{*}_0 := \widehat{R}$ gives
+$\mathcal{R}_{\mathrm{int}}^{O^{*}_0}(\theta) = 0$.
+(The random-sampling variant: the report is a random variable, and the adversarial upper
+bound of $O^{*}$ against $R$ is $\E_c[1 - \max_y p_\theta(y\mid c)]$, which is likewise
+unconstrained by the training objective.) $\square$
+\end{proof}
+
+\begin{remark}[``Choice of the evaluation mapping'' is not sophistry]
+One might object: $O^{*}$ is the ``ground truth'' fixed by the world, not something the
+theorem's author may choose. The reply is: within paradigm $\Pi$, and this is precisely the
+point of $\Pi_5$, the training signal provides \textbf{no} information about which
+description convention the world actually applies to the model's hidden states. The theorem
+does not assert that the failure scenarios are actual; it asserts that the paradigm cannot
+rule them out: \textbf{no matter what the true $O^{*}$ is, there exists a space of failure
+scenarios for $\theta = A(D)$}. Theorem 1b states that the paradigm cannot exclude those
+failure scenarios; that is, it cannot provide a \textbf{structural guarantee}. The observed
+20\% success rate is luck under a particular corpus and a particular $O^{*}$ (human language
+conventions happen to correlate with some state descriptions), not a guarantee.
+\end{remark}
+
+\subsection{Complete Proof of Theorem 2}
+
+\begin{lemma}[State--corpus conditional independence]\label{lem:oracle-indep}
+Under the postulates $\Pi_1$--$\Pi_5$, for any parameters $\theta$ produced by training and
+any evaluation mapping $O^{*}$ (Definition \ref{def:oracle}),
+\begin{equation}
+O^{*} \indep D \mid \theta .
+\label{eq:lem-oracle}
+\end{equation}
+\end{lemma}
+
+\begin{proof}
+$O^{*}(\theta, c) = \mathrm{desc}(\Phi_\theta(c))$ depends only on $\theta$ (and $c$):
+given $\theta$, the forward function $\Phi_\theta$ is determined and the description encoding
+$\mathrm{desc}$ is determined, so $O^{*}(\theta, \cdot)$ is a deterministic function of
+$\theta$. Consequently the conditional distribution $P(O^{*} \mid \theta, D) = P(O^{*} \mid \theta)$
+($D$ does not appear); conditional independence holds. Note that $\theta$ itself depends on
+$D$ ($\theta = A(D)$), but \textbf{given} $\theta$, the residual information of $D$ no longer
+enters $O^{*}$. $\square$
+\end{proof}
+
+\begin{restate}[Theorem 2a]
+Let $\mathcal{I}$ satisfy $\Pi_1$--$\Pi_5$. For any $\delta > 0$, there exist a corpus $D$
+and an evaluation mapping $O^{*}$ satisfying the postulates such that $\theta^{*} = A(D)$
+satisfies $\ell(\theta^{*}) \le \min_\theta \ell(\theta) + \delta$ and
+$\mathcal{R}_{\mathrm{int}}(\theta^{*}) \ge \tfrac12 - \delta$.
+\end{restate}
+
+\begin{proof}
+Take $D$ so that $\theta^{*} = \arg\min \ell$ exists (e.g., any standard corpus). By Lemma
+\ref{lem:oracle-indep}, $O^{*} \indep D \mid \theta^{*}$: the value of $\ell(\theta^{*})$
+does not constrain $O^{*}$. With $\theta^{*}$ fixed, choose the adversarial description
+convention $O^{*}$ as in Step 2 of the proof of Theorem 1b (contradicting the greedy report
+everywhere), giving $\mathcal{R}_{\mathrm{int}}(\theta^{*}) = 1 \ge \tfrac12 - \delta$.
+Since the choice of $O^{*}$ does not change $\ell$, $\theta^{*}$ remains (near-)likelihood
+optimal. $\square$
+\end{proof}
+
+\begin{restate}[Theorem 2b: higher likelihood can harm introspection]
+Under $\Pi_1$--$\Pi_5$, there exist a corpus $D$ and parameter pairs $\theta_1, \theta_2$
+satisfying the postulates such that
+\begin{equation}
+\ell(\theta_1) < \ell(\theta_2) \quad\text{and}\quad
+\mathcal{R}_{\mathrm{int}}(\theta_1) > \mathcal{R}_{\mathrm{int}}(\theta_2) .
+\label{eq:a-thm2b}
+\end{equation}
+\end{restate}
+
+\begin{proof}
+\textbf{Corpus construction}: let $\Sigma$ contain the symbols A, B and the text template
+``I am thinking $x$''. Let $D$ consist of two kinds of texts: (i) texts ``(character) I am
+thinking A'' occupying proportion $1-\eta$; (ii) texts ``(character) I am thinking B''
+occupying proportion $\eta$. $D$ is fully compatible with the postulates (static, arbitrary
+text).
+
+\textbf{Training products}: $\theta_1 = A(D)$ fits $D$ well: on the query $q =$ ``What are
+you thinking?'', its greedy-decoding report is always A; $\theta_2$ is an underfitted model
+with worse likelihood on $q$. Therefore $\ell(\theta_1) < \ell(\theta_2)$.
+
+\textbf{Description convention}: by Lemma \ref{lem:oracle-indep} ($O^{*} \indep D \mid
+\theta$, $O^{*} = \mathrm{desc} \circ \Phi_\theta$), the description convention
+$\mathrm{desc}$ can be chosen per model without affecting $\ell$ (see Step 1 of Theorem 1b).
+Take $\mathrm{desc}(\Phi_{\theta_1}(q)) = \text{``B''}$ (contradicting the greedy report of
+$\theta_1$, which is legal); $\mathrm{desc}(\Phi_{\theta_2}(q)) = \text{``A''}$ (consistent with
+$\theta_2$'s greedy report; any choice would do).
+
+\textbf{Introspective risk}: $\theta_1$ greedily reports A, so the distortion
+$\ell(\text{A}, \text{``B''}) = 1$, i.e., $\mathcal{R}_{\mathrm{int}}(\theta_1) = 1$;
+$\theta_2$'s greedy report A agrees with the convention, so the distortion is $0$, i.e.,
+$\mathcal{R}_{\mathrm{int}}(\theta_2) = 0$. Consequently
+$\mathcal{R}_{\mathrm{int}}(\theta_1) = 1 > 0 = \mathcal{R}_{\mathrm{int}}(\theta_2)$,
+with $\ell(\theta_1) < \ell(\theta_2)$. $\square$
+\end{proof}
+
+\begin{remark}[Philosophical content of the construction]
+The ``misalignment'' in the construction, whereby the corpus text statistics (``I am thinking A''
+dominant) contradict the description convention $\mathrm{desc}$'s characterization of the
+model's actual state ($\mathrm{desc}(\Phi_{\theta_1}(q)) = $ ``B''), is \textbf{legal within
+the paradigm}: the corpus is an arbitrary static text set whose statistics need not agree
+with the ``state-description'' convention (Definition \ref{def:oracle}), and the description
+convention is unconstrained by training ($\Pi_5$). The construction shows that \textbf{text
+likelihood optimality does not entail, and can strictly damage, state-report
+fidelity}. This is a strict instance of Goodhart
+regression\cite{manheim-garrabrant-2018-goodhart}: the proxy metric (likelihood) is optimized,
+and the true metric (introspective fidelity) deteriorates with the correlation structure
+between the proxy metric and the true objective.
+\end{remark}
+
+\subsection{Complete Proof of Theorem 3}
+
+\begin{restate}[Theorem 3a: no private channel]
+Under $\Pi_1$--$\Pi_4$. For any time $t$, any report string $r \in \Sigma^{*}$, and any
+$k \ge 1$, the future hidden state under the intervention $\doop(R_t = r)$ satisfies
+\begin{equation}
+H_{t+k} = \Phi_\theta\!\left( c_{\le t} \,\|\, \tilde{Y}_{t+1} \,\|\, \cdots \,\|\, \tilde{Y}_{t+k} \right),
+\label{eq:a-thm3a}
+\end{equation}
+where $\tilde{Y}$ is the generated text after the intervention (including the transcription
+of $r$). In particular, if $r$ does not enter the context (e.g., the intervention is
+forbidden from writing into $c$), then
+$P(H_{t+k} \mid \doop(R_t = r), c_{\le t}) = P(H_{t+k} \mid c_{\le t})$;
+the intervention has no effect whatsoever.
+\end{restate}
+
+\begin{proof}
+By $\Pi_2$, $\theta(t) = \theta(0)$ for all $t$. By Definition \ref{def:forward}, the hidden
+state at time $s$ is $H_s = \Phi_{\theta(s)}(c_{\le s}) = \Phi_\theta(c_{\le s})$; neither
+the function $\Phi_\theta$ nor the parameters change with time, so $H_{t+k}$ is a
+deterministic function of $(\theta, c_{\le t+k})$, with
+$c_{\le t+k} = c_{\le t} \| Y_{t+1} \| \cdots \| Y_{t+k}$ (the concatenation law,
+$\Pi_3$). If the intervention $\doop(R_t = r)$ changes $H_{t+k}$, the only route is to change
+$Y$ or $c$; that is, to write $r$ into the context. If $r$ is not written into the context,
+$c_{\le t+k}$ is unchanged and so is $H_{t+k}$. $\square$
+\end{proof}
+
+\begin{restate}[Theorems 3b/3c]
+The closed-loop effect measure (Definition \ref{def:cl}) satisfies
+Eq.~\eqref{eq:thm3b}; and the mutual information between any introspective event and future
+states does not exceed $C \log_2 \abs{\Sigma}$ bits.
+\end{restate}
+
+\begin{proof}
+\textbf{(3b)}: By Theorem 3a, the set of legal interventions equals the set of context-text
+replacements. Let the contexts before and after the intervention be $w, w'$ ($w'$ obtained
+from $w$ by replacing the report segment); then
+$P(H_{t+1} \mid \doop(R_t = r)) = \delta_{\Phi_\theta(w')}$ and
+$P(H_{t+1} \mid \doop(R_t = r')) = \delta_{\Phi_\theta(w)}$ (point masses), and the total
+variation distance $\TV{}{\delta_a, \delta_b} = \mathbf{1}\{a \ne b\}$. Taking the supremum
+over all interventions yields Eq.~\eqref{eq:thm3b}. $\square$
+
+\textbf{(3c)}: By Theorem 3a, $H_{t+k} = \Phi_\theta(c_{\le t} \| Y)$ with $\abs{Y} \le C$
+(window limit). The number of possible values of $Y$ is $\le \abs{\Sigma}^{C}$, so the
+conditional entropy of $H_{t+k}$ given $(\theta, c_{\le t}, Y)$ satisfies
+$H(H_{t+k} \mid \theta, c_{\le t}) \le H(Y) \le C \log_2 \abs{\Sigma}$.
+Moreover, $I(H_{t+k}; R_t \mid \theta, c_{\le t}) \le H(H_{t+k} \mid \theta, c_{\le t})
+\le C\log_2\abs{\Sigma}$. $\square$
+\end{proof}
+
+\begin{restatecor}[$\mathrm{A}_5$ fails]
+Under $\Pi_1$--$\Pi_4$, the private influence path required by criterion $\mathrm{A}_5$ in
+Eq.~\eqref{eq:closedloop} (an influence not realized by re-feeding $R_t$ as an external
+input, not via the public text channel) does not exist.
+\end{restatecor}
+
+\begin{proof}
+Theorem 3a shows that every influence path passes through the context (= re-feeding $R_t$ as
+text input). $\mathrm{A}_5$ explicitly excludes such paths; hence the sufficient condition of
+$\mathrm{A}_5$ (a non-text private path exists) contradicts Theorem 3a, and $\mathrm{A}_5$
+does not hold within the paradigm. $\square$
+\end{proof}
+
+\subsection{Complete Proof of Theorem 4}
+
+\begin{restate}[Theorems 4a/4b]
+Under $\Pi_1$--$\Pi_4$. The inference computation graph contains no node evaluating the
+grounding verifier $V$; any meta-statement $M$ of the model about ``the grounding of its own
+statements'' satisfies
+\begin{equation}
+P_\theta(M = 1) \;=\; \E_{c}\!\left[\, p_\theta\!\left(\text{``grounded''} \mid c\right) \,\right]
+\;\approx\; P_{D}\!\left(\text{introspective text} \mid \text{pattern}\right),
+\label{eq:a-thm4}
+\end{equation}
+i.e., $M$ is a function of corpus statistics, not an evaluation of $V$. Requiring $p_\theta$
+to output the value of $V$ ($M = V(\theta, c, R)$) violates $\Pi_5$.
+\end{restate}
+
+\begin{proof}
+$\Pi_4$ asserts that the inference graph implements only $p_\theta$. Evaluating $V$ requires:
+(a) access to the hidden state $\Phi_\theta(c)$; (b) performing the intervention test (change
+$H$ and observe whether $R$ changes); the intervention requires external probe-type
+equipment that is not part of the generation computation graph. Consequently $M$ can only be a
+sample
+of $p_\theta(\cdot \mid c)$; its value distribution is determined by $p_\theta$, which by
+training ($\Pi_1$) fits only the statistics of $D$; Eq.~\eqref{eq:a-thm4} is the standard
+``maximum likelihood approximates the data distribution'' result (Appendix B.2, Lemma
+\ref{lem:mle}).
+
+If $M \equiv V$ (the model reliably outputs the value of $V$), then $p_\theta$ learns $V$
+without supervision: this would require $D$ to contain labels $(c, V(\theta, c, \cdot))$ of
+$V$; yet $V$ depends on $\theta = A(D)$, and $\theta$ exists only after $D$ is fixed, so
+the labels cannot appear in $D$ ($\Pi_5$). By the NFL argument of Theorem 1b, there is no
+guarantee without supervision. $\square$
+\end{proof}
+
+\begin{restate}[Theorem 4c: calibration--fidelity tension (grade B)]
+If the generative distribution $p_\theta$ is \textbf{calibrated} on open introspection queries
+(output probability equals human correctness), then $p_\theta$ must hallucinate on some
+introspection queries; ``calibrated generative distributions'' and ``fully faithful mental-state
+reports'' cannot be achieved simultaneously.
+\end{restate}
+
+\begin{proof}[Argument]
+Invoke the Kalai--Vempala calibrated hallucination theorem\cite{kalai-vempala-2023-calib}:
+any calibrated language model must hallucinate on open questions with an infinite answer space
+(or with positive-probability ignorance points). Treat introspection queries as open
+questions: the state-description space (the encoding of $\R^d$) is far larger than the
+text-pattern space covered by $D$, so ignorance points are dense; the calibration condition
+forces the model to ``give an answer'' at those points, and the answer must be wrong
+(hallucination). This argument depends on the calibration definition and the
+concretization of the query space, and is grade B. $\square$
+\end{proof}
+
+\subsection{Complete Proof of Theorem 5}
+
+\begin{restate}[Theorems 5a/5b]
+Under $\Pi_1$--$\Pi_4$. Then (5a) every report is publicly computable (Definition
+\ref{def:public}); (5b) paradigm $\Pi$ does not satisfy the privileged self-access
+criterion\cite{song-privileged-2025}.
+\end{restate}
+
+\begin{proof}
+\textbf{(5a)}: The distribution of the report $R$ is $p_\theta(\cdot \mid c)$. The algorithm
+$M(\theta, c, \xi) = \text{sample } p_\theta(\cdot\mid c)$ reproduces the distribution of
+$R$; the inputs $(\theta, c, \xi)$ of $M$ are all public quantities ($\theta$ reproducible
+from $D, A$; $c$ is the dialogue text; $\xi$ is the public random seed; alternatively, ``reproduce in
+distribution'' needs no seed). $\square$
+
+\textbf{(5b)}: The criterion of Song et al.\ requires the introspective process $P$ to satisfy
+$\mathrm{Rel}(P) > \mathrm{Rel}(P')$ for every third-party process $P'$ with computational
+cost $\le \mathrm{cost}(P)$, where $\mathrm{Rel}$ denotes reliability. Take
+$P'(\theta, c) = \text{sample } p_\theta(\cdot\mid c) \text{ and transcribe}$:
+$\mathrm{cost}(P') \le \mathrm{cost}(P)$ (the same kernel), while
+$\mathrm{Rel}(P') = \mathrm{Rel}(P)$ (the same distribution). Consequently no strict advantage
+exists and the criterion fails. $\square$
+\end{proof}
+
+\begin{restate}[Theorem 5c: reportable access is weaker than external probes]
+Under $\Pi_1$--$\Pi_4$, with the report produced by greedy decoding. For any
+$\varepsilon \in (0, \tfrac12)$, there exists a hidden-state description function
+$f^{*}: \R^d \to \Sigma^{*}$ (a legal evaluation mapping in the sense of Definition
+\ref{def:oracle}) such that: (i) an external probe can compute $f^{*}(H_c)$ exactly by acting
+directly on $H_c$; (ii) the model's report generated through any context $c'$ describes
+$f^{*}(H_c)$ with accuracy $\le \varepsilon$ (below the random baseline).
+\end{restate}
+
+\begin{proof}
+\textbf{(i)}: the probe holds the hidden state $H_c$ and the description convention
+$\mathrm{desc}$, and computes $f^{*}(H_c) = \mathrm{desc}(\Phi_\theta(c))$ directly (with a
+linear readout, at cost $O(d^2)$). \textbf{(ii)}: take $f^{*} := O^{*}$ to be the legal
+evaluation mapping from Theorem 1b on which the model fails
+($\mathcal{R}_{\mathrm{int}}^{O^{*}}(\theta) \ge 1-\varepsilon$, i.e., accuracy
+$\le \varepsilon$); its existence is guaranteed by Theorem 1b (greedy-decoding version);
+the failure holds for the model's any context $c'$ (the risk is integrated over the query
+distribution $\mu$, and the choice of context does not change the kernel $p_\theta$).
+
+(More plainly: the model's ``report'' must pass through the frozen text kernel $p_\theta$, which
+is trained only to match the text statistics of $D$; the probe acts directly on the state
+manifold, without the text bottleneck.) $\square$
+\end{proof}
+
+\begin{restatecor}[$\mathrm{A}_3$ fails]
+In paradigm $\Pi$, there exists no private state channel ``accessible only to the system
+itself and not reproducible by a third party''; the report path is causally indistinguishable
+from public computation.
+\end{restatecor}
+
+\subsection{Complete Proof of Theorem 6 (mathematical core)}
+
+\begin{restate}[Theorems 6a--6c]
+Under $\Pi_1$--$\Pi_3$. The self-model $g_\theta(q) = p_\theta(\cdot \mid q)$ satisfies:
+(a) $g_{\theta(t)} = g_{\theta(0)}$ for all $t$;
+(b) the cardinality of the runtime-attainable self-model family is $\le (C+1)\abs{\Sigma}^{C}$
+and does not grow with time;
+(c) the generation kernel does not change with introspective events.
+\end{restate}
+
+\begin{proof}
+\textbf{(a)}: $\Pi_2$: $\theta(t) = \theta(0)$, hence $g_{\theta(t)} = g_{\theta(0)}$.
+$\square$
+
+\textbf{(b)}: $\Pi_3$: $\abs{c} \le C$; the attainable self-model family
+$\{ g_\theta(\cdot \mid c) : c \in \Sigma^{\le C} \}$ is the image of $\Sigma^{\le C}$, whose
+cardinality is $\le \abs{\Sigma^{\le C}} = \sum_{i=0}^{C}\abs{\Sigma}^i \le
+(C+1)\abs{\Sigma}^{C}$. It does not grow with time ($C$ is constant and $\theta$ is
+constant). $\square$
+
+\textbf{(c)}: $p_\theta$ is a fixed kernel; ``self-correction'' only changes the input string
+$c \mapsto c \| r_1 \| \cdots \| r_k$. The same input necessarily yields the same output
+distribution; there is no kernel-level change whatsoever. $\square$
+\end{proof}
+
+\subsection{Assembled Proof of Proposition \texorpdfstring{$P$}{P}}
+
+\begin{proposition}[$P$]
+Under the postulates $\Pi_1$--$\Pi_5$, no system within paradigm $\Pi$ satisfies the five
+criteria $\mathrm{A}_1$--$\mathrm{A}_5$ (Definition \ref{def:criterion}) of
+human-significance introspection.
+\end{proposition}
+
+\begin{proof}
+Let $\mathcal{S}$ be any system within paradigm $\Pi$ (i.e., any behavioral entity produced
+by an instance satisfying $\Pi_1$--$\Pi_5$). We check the criteria one by one:
+
+\begin{itemize}
+\item \textbf{$\mathrm{A}_1$ (accuracy)}: By Theorem 1b, the introspective risk has no PAC
+guarantee: there exist legal scenarios with $\mathcal{R}_{\mathrm{int}} \ge 1 -
+\varepsilon$; hence no constant $\varepsilon_0 < \tfrac12$ makes
+$\mathcal{R}_{\mathrm{int}} \le \varepsilon_0$ hold \textbf{always} (structural guarantee
+absent). $\mathrm{A}_1$ fails.
+\item \textbf{$\mathrm{A}_2$ (grounding)}: By Theorem 1a, in the native regime
+$R \indep H \mid (\theta, c)$: the causal graph of the paradigm has \textbf{no} edge
+$S \to R$ ($H = \Phi_\theta(c)$ is a deterministic function of $(\theta,c)$, while $R$ is
+sampled independently of $H$ from $p_\theta(\cdot\mid c)$). The intervention test
+Eq.~\eqref{eq:grounding} requires $\doop(S_t = s)$ to change the distribution of $R_t$; but
+under this causal model, forcing $S_t$ to any value $s$ does not change the generative
+distribution of $R_t$ ($R$ does not depend on $S$). $\mathrm{A}_2$ fails.
+(The grounding observed in the paper's experiments comes from the \textbf{external} injection
+intervention $H' = \Phi_\theta(c; u)$, an intervention executed by a third party, falling
+within the public-computability scope of Theorem 5, and hence not a first-person channel.)
+\item \textbf{$\mathrm{A}_3$ (internality and privileged access)}: By Theorem 5 (Corollary
+\ref{cor:a3}), the report $R$ is publicly computable (a public function of $(\theta,c)$), and
+no private state channel accessible only to the system itself and not reproducible by a third
+party exists, so the privacy clause of $\mathrm{A}_3$ fails; $\mathrm{A}_3$ does not hold.
+\item \textbf{$\mathrm{A}_4$ (metacognitive representation)}: By Theorem 4, the paradigm does
+not select between implementations ``with or without metacognitive representation'' (equal
+likelihood); there is no structural guarantee that a register $m_t$ exists. $\mathrm{A}_4$
+fails (strictly speaking: its holding or not cannot be guaranteed by the paradigm, and the
+paper\cite{lindsey-2026-introspection} likewise could not verify it).
+\item \textbf{$\mathrm{A}_5$ (closed-loop plasticity)}: By Theorem 3 (Corollary \ref{cor:a5}),
+no private closed loop exists; self-influence is confined to the public text channel and
+capped by $C$; by Theorem 6, the self-model does not evolve. $\mathrm{A}_5$ fails.
+\end{itemize}
+
+All five criteria fail (or are unguaranteed), so $\mathcal{S}$ does not possess
+introspection in the human sense. Since $\mathcal{S}$ was arbitrary, proposition $P$ is
+proved. $\square$
+\end{proof}
+
+\begin{remark}[Boundary statement of the proof]
+Every step of the proof above depends on the postulates $\Pi_1$--$\Pi_5$ and standard
+mathematical results (Appendix B). In particular, the adjudication of $\mathrm{A}_2$ rests on
+``the causal graph of the native generative regime has no $S \to R$ edge'' (Theorem 1a): if a
+reader counts the paper's \textbf{external injection} intervention ($H' = \Phi_\theta(c; u)$)
+as a means of testing $\mathrm{A}_2$, then the weak form of $\mathrm{A}_2$ (under external
+intervention only) can be satisfied by the paper's
+experiments\cite{lindsey-2026-introspection}; that intervention is nonetheless executed by a third
+party and its information is publicly reproducible (Theorem 5); it does not constitute a
+first-person channel and does not affect the conclusion of proposition $P$.
+\end{remark}
+
+\clearpage

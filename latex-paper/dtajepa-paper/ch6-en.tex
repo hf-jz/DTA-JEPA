@@ -1,0 +1,41 @@
+\section{Discussion and Conclusion}
+
+\subsection{What the results say}
+
+\subsection{Limitations}
+
+\paragraph{Protocol-level, not benchmark-level, replication.} Our environments are a numpy
+re-implementation. The shift families, goal sampling, planner, budget and success criteria
+match AdaJEPA, but the physics, the observation statistics and the model architectures differ
+from PushT/PointMaze with DINO-WM or ResNet encoders trained on tens of thousands of expert
+trajectories. Absolute success rates are therefore not comparable across the two papers; the
+\emph{ordering and the relative gains}, measured under identical conditions, are what our
+experiments establish.
+
+\paragraph{Scale.} Models are $\sim$1.3M parameters, trained on a few hundred trajectories per
+environment family on a laptop CPU/MPS. This is deliberate---it makes the study fully
+reproducible---but it also means the regime is data-poor, which is precisely where test-time
+adaptation is strongest. Whether the same allocation policy helps a 100M-parameter world model
+trained on tens of thousands of trajectories is an open question; our propositions suggest the
+mechanism should, but the operating point could shift.
+
+\paragraph{Hand-set allocation shape.} The mapping from relative surprise to steps, learning
+rate and refinement depth is a sigmoid with three hand-set ranges. It is not learned. A learned
+controller (e.g.\ bandit or meta-learned allocation) is an obvious next step, and the anchor
+ball gives the safety guarantee that would make exploration of larger budgets admissible.
+
+\paragraph{Reward-free scope.} We never use reward labels, which is a strength for generality
+and a limit for tasks where task-specific value information would dominate.
+
+\subsection{Conclusion}
+
+Adaptive latent world models need three separations that a single fixed test-time gradient
+step cannot provide: a separation between the slow dynamics that should not move and the fast
+computation that should, a separation between environments where the model is already right
+and environments where it is wrong, and a separation between the current episode and the
+experience accumulated so far. DTA-JEPA implements those separations with a dual-timescale
+recursive predictor, an uncertainty-allocated adaptation controller, a persistent dual memory
+with a safety layer, and reports gains over a faithful AdaJEPA re-implementation across all
+four of its shift families---largest where the model is most surprised, smallest where it is
+already adequate---while ablations attribute the improvement to allocation, memory, safety and
+recursive depth respectively.

@@ -1,0 +1,7 @@
+# DTA-JEPA runs on CPU or Apple MPS with a very small dependency set.
+# Verified with python 3.9 + torch 2.8 on macOS (arm64).
+torch>=2.0
+numpy>=1.24
+pandas>=2.0
+matplotlib>=3.7
+# LaTeX (xelatex/pdflatex) is only needed to rebuild the paper.

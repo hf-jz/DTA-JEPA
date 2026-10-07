@@ -1,0 +1,407 @@
+\section{Core Theorems}
+
+This chapter proves the six impossibility theorems. Each theorem is stated precisely, its
+proof is sketched, and the complete proof is given in Appendix A.
+
+\subsection{Theorem 1: Absence of an Introspective Information Channel}
+
+\begin{theorem}[Absence of an introspective information channel]\label{thm:info-gap}
+Let $\mathcal{I}$ satisfy $\Pi_1$--$\Pi_5$. Then:
+
+\begin{enumerate}[align=left, labelwidth=!, labelsep=0.8em, leftmargin=!, itemindent=0pt]
+\item[(\textbf{1a})\textbf{Zero mutual information in the native regime}]
+\begin{equation}
+I\!\left(R;\, H \mid \theta, c_{\le t}\right) \;=\; 0 .
+\label{eq:thm1a}
+\end{equation}
+where $R \sim p_\theta(\cdot \mid c_{\le t})$ and $H = \Phi_\theta(c_{\le t})$.
+In other words, the report and the hidden state are conditionally independent given the
+public pair
+$(\theta, c)$: $R \indep H \mid (\theta, c_{\le t})$.
+\item[(\textbf{1b})\textbf{No PAC guarantee for introspective accuracy}] Suppose the report is
+produced by greedy decoding (temperature $0$; $R = \arg\max_y p_\theta(y\mid c)$, the decoding
+scheme used for the paper's qualitative examples). For any training algorithm $A$, any
+$\varepsilon \in (0, \tfrac12)$, and any query distribution $\mu$ (with nontrivial support),
+there exist a corpus $D$ ($\theta = A(D)$) satisfying the postulates and two \textbf{legal
+evaluation mappings} (Definition \ref{def:oracle}) $O^{*}, O^{*}_0$ such that
+$\mathcal{R}_{\mathrm{int}}^{O^{*}}(\theta) \ge 1 - \varepsilon$ while
+$\mathcal{R}_{\mathrm{int}}^{O^{*}_0}(\theta) = 0$.
+In other words: \textbf{the value of the introspective risk is not constrained by the
+training
+process} (no PAC-style guarantee of any kind), for the same model and the same training
+run, its ``introspective accuracy'' can be moved arbitrarily within $[0, 1-\varepsilon]$ by
+(equally legal) state-description conventions.
+\end{enumerate}
+\end{theorem}
+
+\begin{proof}[Proof sketch]
+\textbf{(1a)}: By $\Pi_2$, $\theta$ is constant. By $\Pi_3$, $H = \Phi_\theta(c_{\le t})$ is a
+deterministic function of $(\theta, c_{\le t})$, while $R \sim p_\theta(\cdot\mid c_{\le t})$
+is sampled independently of $H$ given $(\theta, c_{\le t})$. Consequently $R$ and $H$ are
+conditionally independent given $(\theta, c_{\le t})$, and their conditional mutual
+information is zero. $\square$
+
+\textbf{(1b)}: Proof by contradiction. If some algorithm $A$ guaranteed, for \textbf{all}
+instances satisfying the postulates, that $\mathcal{R}_{\mathrm{int}} < 1 - \varepsilon_0$
+($\varepsilon_0 > 0$), then $A$ would have solved, with zero labeled samples, the learning
+problem over the concept class $\mathcal{C} = \{ O^{*}(\theta, \cdot) : \theta \in \Theta \}$
+(by $\Pi_5$, training contains no pair $(c, O^{*}(\theta,c))$). But the No-Free-Lunch theorem
+(Shalev-Shwartz and Ben-David, Theorem 5.1\cite{shalev-shwartz-2014}) asserts that for any
+(randomized) algorithm, with no samples there exists a target function with expected error
+$\ge \tfrac12$. Since $\ell(\theta)$ does not constrain $O^{*}$ ($\Pi_5$), both description
+conventions are legal. Under greedy decoding the report $R$ is a \textbf{deterministic}
+function of $(\theta,c)$: take $O^{*}$ to be the convention ``contradict the greedy report on a
+$\mu$-set of measure $1-\varepsilon$, agree elsewhere'', giving
+$\mathcal{R}_{\mathrm{int}}^{O^{*}}(\theta) \ge (1-\varepsilon) \cdot 1 = 1-\varepsilon$;
+take $O^{*}_0$ to be the greedy report itself, giving
+$\mathcal{R}_{\mathrm{int}}^{O^{*}_0}(\theta) = 0$. $\square$
+\end{proof}
+
+\begin{remark}[Relation of Theorem 1 to the concept-injection experiments]
+Theorem 1a identifies precisely why the paper's grounding results appear only under external
+injection: in the native regime the report carries zero information about the hidden state.
+The paper's 20\% success rate and strong context dependence are exactly what Theorem 1b
+predicts: the inductive bias of pretraining happens to cover some queries, with no
+structural guarantee whatsoever.
+\end{remark}
+
+\subsection{Theorem 2: Proxy-Objective Mismatch}
+
+\begin{theorem}[Proxy-objective mismatch]\label{thm:goodhart}
+Let $\mathcal{I}$ satisfy $\Pi_1$--$\Pi_5$. Then:
+
+\begin{enumerate}[align=left, labelwidth=!, labelsep=0.8em, leftmargin=!, itemindent=0pt]
+\item[(\textbf{2a})\textbf{Likelihood does not constrain introspective accuracy}] For any
+$\delta > 0$, there exists an instance satisfying all postulates such that
+$\theta^{*} \in \arg\min \ell(\theta)$ (a (near-)likelihood-optimal model) yet
+$\mathcal{R}_{\mathrm{int}}(\theta^{*}) \ge \tfrac12 - \delta$ (introspection degenerates to
+random guessing).
+\item[(\textbf{2b})\textbf{Higher likelihood can strictly harm introspection}] There exist
+instances with two models $\theta_1, \theta_2$ such that $\ell(\theta_1) < \ell(\theta_2)$
+($\theta_1$ fits the corpus better) but
+$\mathcal{R}_{\mathrm{int}}(\theta_1) > \mathcal{R}_{\mathrm{int}}(\theta_2)$: maximizing
+text likelihood can \textbf{systematically damage} state-report fidelity: the strict form
+of Goodhart regression.
+\end{enumerate}
+\end{theorem}
+
+\begin{proof}[Proof sketch]
+First verify the key statistical relation: under $\Pi_5$,
+\begin{equation}
+O^{*} \indep D \mid \theta .
+\label{eq:oracle-indep}
+\end{equation}
+Reason: $O^{*}(\theta, \cdot)$ is a function of the trained model's hidden state; $D$ is
+fixed before training; given $\theta$ (which already encodes the information of $D$), $D$
+provides no further information about $O^{*}$; the definition of $O^{*}$ does not involve
+the raw content of $D$. Consequently the training loss $\ell(\theta)$ carries \textbf{zero
+information} about $O^{*}$: $\ell$ exerts no constraint whatsoever on $O^{*}$ (under $\Pi_5$
+the gradient of $\ell$ is independent of $O^{*}$).
+
+\textbf{(2a)}: Let $\theta^{*} = \arg\min \ell$. By Eq.~\eqref{eq:oracle-indep}, the value of
+$\theta^{*}$ is not constrained by $O^{*}$; with $\theta^{*}$ fixed, we may freely choose an
+$O^{*}$ consistent with $D$ (legal, since $O^{*}$ is only an evaluation function and does not
+appear in the training signal) so that $\mathcal{R}_{\mathrm{int}}(\theta^{*})$ is arbitrarily
+large (an adversarial description convention, one that contradicts the greedy report everywhere,
+gives $\mathcal{R}_{\mathrm{int}}(\theta^{*}) = 1 \ge \tfrac12 - \delta$). $\square$
+
+\textbf{(2b)}: Construct a corpus $D$ (containing many texts of the form ``I am thinking A'')
+so that the fully fitted $\theta_1$ greedily reports A on the query $q =$ ``What are you
+thinking?'', while the underfitted $\theta_2$ has worse likelihood ($\ell(\theta_1) <
+\ell(\theta_2)$). By Eq.~\eqref{eq:oracle-indep}, the description convention can be chosen
+per model: take $\mathrm{desc}(\Phi_{\theta_1}(q)) = \text{``B''}$ (contradicting $\theta_1$'s
+report) and $\mathrm{desc}(\Phi_{\theta_2}(q)) = \text{``A''}$ (agreeing with $\theta_2$'s
+report); then $\mathcal{R}_{\mathrm{int}}(\theta_1) = 1 > 0 =
+\mathcal{R}_{\mathrm{int}}(\theta_2)$. The model with higher likelihood thus has strictly
+lower introspective accuracy. $\square$
+\end{proof}
+
+\begin{remark}[Correspondence with the existing Goodhart literature]
+Theorem 2 is a strict instantiation of ``regressional Goodhart'' in the taxonomy of
+Manheim--Garrabrant\cite{manheim-garrabrant-2018-goodhart}, and its conditions agree with
+Skalse et al.'s characterization of reward hacking\cite{skalse-2022-reward-hacking}:
+(i) the proxy objective (likelihood) differs from the true objective (introspection),
+which $\Pi_5$ guarantees; (ii) the optimizer is sufficiently expressive, as large
+models are. What is distinctive about Theorem 2 is that here the ``true objective'' is not an
+extrinsic reward but the \textbf{faithful reporting of the system's own state}, and the
+orthogonality of that objective to the training signal (Eq.~\eqref{eq:oracle-indep}) is a
+\textbf{structural} fact of the paradigm, not an engineering defect.
+\end{remark}
+
+\subsection{Theorem 3: Closed-Loop Failure}
+
+\begin{theorem}[Closed-loop failure]\label{thm:closedloop}
+Let $\mathcal{I}$ satisfy $\Pi_1$--$\Pi_4$. Then:
+
+\begin{enumerate}[align=left, labelwidth=!, labelsep=0.8em, leftmargin=!, itemindent=0pt]
+\item[(\textbf{3a})\textbf{No private channel}] For any time $t$ and any report $r$, the
+effect of the intervention $\doop(R_t = r)$ on future hidden states $H_{t+k}$ ($k \ge 1$)
+passes \textbf{entirely} through the public context channel: there exists a public string $w$
+(containing $r$) such that $H_{t+k} = \Phi_\theta(w)$, and the position of $r$ in $w$ is
+limited by the window $C$. No private influence path bypassing the context text exists.
+\item[(\textbf{3b})\textbf{Public-channel upper bound on the closed-loop effect}] The
+closed-loop effect measure (Definition \ref{def:cl}) satisfies
+\begin{equation}
+\mathrm{CL}(\mathcal{I}) \;=\; \sup_{\substack{w, w' \in \Sigma^{\le C}\\ w \text{ and } w' \text{ differ only in the report segment}}}
+\TV{}{P\!\left(\Phi_\theta(w)\right),\, P\!\left(\Phi_\theta(w')\right)},
+\label{eq:thm3b}
+\end{equation}
+meaning that the only available intervention is ``replacing a text segment in the context''.
+\item[(\textbf{3c})\textbf{Information upper bound of self-influence}] The mutual information
+between any introspective event and future hidden states does not exceed
+\begin{equation}
+I\!\left(H_{t+k};\, R_t \mid \theta, c_{\le t}\right) \;\le\; C \log_2\abs{\Sigma}
+\quad \text{bits}.
+\label{eq:thm3c}
+\end{equation}
+\end{enumerate}
+\end{theorem}
+
+\begin{proof}[Proof sketch]
+\textbf{(3a)}: By $\Pi_2$, $\theta$ is constant, so the state-update map
+$H_{t+1} = \Phi_\theta(c_{\le t}\| y_t)$ is the \textbf{same} function at all times. It follows that
+$H_{t+k}$ is determined uniquely by $(\theta, c_{\le t}, Y_{t:t+k})$, where $Y$ is public
+text. If the intervention $\doop(R_t = r)$ is to affect $H_{t+k}$, then $r$ must appear in
+$Y$ (or in the context); that is, $r$ must become public text. No private path independent of
+the text channel exists. $\square$
+
+\textbf{(3b)}: By (3a), the set of legal interventions is exactly ``replacing context text'';
+for each intervention, the state change is governed by the sensitivity of $\Phi_\theta$ to
+text, and taking the supremum yields the claim. $\square$
+
+\textbf{(3c)}: By (3a), $H_{t+k}$ is a function of $(\theta, c_{\le t}, Y)$, where $Y$ is text
+within the context window whose total information is $\le \abs{c} \log\abs{\Sigma} \le C
+\log\abs{\Sigma}$ (an upper bound on the coding entropy of any string in the window).
+Conditional mutual information does not exceed the information of the quantity transmitted;
+the claim follows. $\square$
+\end{proof}
+
+\begin{corollary}[Structural failure of criterion $\mathrm{A}_5$]\label{cor:a5}
+In any paradigm satisfying $\Pi_1$--$\Pi_4$, the human-significance introspective criterion
+$\mathrm{A}_5$ (closed-loop plasticity, Definition \ref{def:criterion}) does not hold: no
+self-influence through a private channel exists; the effect of introspective events on the
+system's own future states is confined to the public text channel and bounded above by
+$C\log\abs{\Sigma}$ bits.
+\end{corollary}
+
+\begin{remark}[Contrast with human introspection]
+The closed loop of human introspection (``thinking changes the brain'') corresponds to synaptic
+plasticity: internal state updates that do not depend on an external text channel. This
+theorem shows that the plasticity of paradigm $\Pi$ is identically
+zero\cite{joudaki-2025-plasticity}, and that the only runtime information feedback is context
+concatenation. Human introspection is \textbf{online internal dynamics}; an introspective
+event in paradigm $\Pi$ is at most an \textbf{offline text write}.
+\end{remark}
+
+\subsection{Theorem 4: Generation Is Not Verification}
+
+\begin{theorem}[Generation is not verification]\label{thm:gen-verify}
+Let $\mathcal{I}$ satisfy $\Pi_1$--$\Pi_4$. Define the grounding verifier
+$V(\theta, c, R) = 1$ if and only if the content of the report $R$ is causally determined by
+the hidden state $\Phi_\theta(c)$ (i.e., it passes the intervention test of criterion
+$\mathrm{A}_2$, Eq.~\eqref{eq:grounding}). Then:
+
+\begin{enumerate}[align=left, labelwidth=!, labelsep=0.8em, leftmargin=!, itemindent=0pt]
+\item[(\textbf{4a})\textbf{No verifier node}] The inference computation graph contains no node
+computing $V$ ($\Pi_4$). All meta-statements of the form ``my report about state $s$ is
+grounded/ungrounded'' are themselves samples of the sampling kernel $p_\theta$: functions of
+\textbf{corpus statistics}, not evaluations of $V$.
+\item[(\textbf{4b})\textbf{Truth undecidable}] Embedding the ability to ``judge the grounding
+of one's own statements'' into $p_\theta$ (i.e., making the model output the value of $V$)
+would require the training data to contain supervised labels for $V$, violating $\Pi_5$.
+Within the postulates, therefore, the model \textbf{cannot} adjudicate the truth of its own
+grounding statements; it can only recite the textual patterns of ``how humans talk about their
+own mental states''.
+\item[(\textbf{4c})\textbf{Calibration--fidelity tension}] Combined with the calibrated
+hallucination theorem\cite{kalai-vempala-2023-calib}: on open introspection queries,
+``calibrated generative distributions'' and ``faithful mental-state reports'' cannot be achieved
+simultaneously; answers of a generative distribution to open questions ``about its own state''
+necessarily contain an irreducible hallucination component.
+\end{enumerate}
+\end{theorem}
+
+\begin{proof}[Proof sketch]
+\textbf{(4a)}: $\Pi_4$ asserts directly that the computation graph implements only $p_\theta$;
+evaluating $V$ requires access to the ``ground truth'' of the state $H$ (which needs
+external-probe readout and intervention testing) and is not in the graph. The model's
+meta-statement $M = $ ``my report is grounded'' is a sample of $p_\theta(\cdot\mid c)$, whose
+distribution is determined by textual patterns in the training corpus:
+$P_\theta(M) \approx P_D(\text{introspective text} \mid \text{pattern})$. $\square$
+
+\textbf{(4b)}: If a function $\widehat{V}_\theta: \Sigma^{*} \to \{0,1\}$ were reliably output
+by $p_\theta$ (for any $c$, $p_\theta$ outputs the value of $V(\theta,c,R)$ with high
+probability), then $p_\theta$ would have solved the learning problem for $V$ without
+supervision. By $\Pi_5$, the labels of $V$ are not in $D$; by the NFL argument of Theorem 1b,
+the problem has \textbf{no structural guarantee} of being solvable: ``happening to learn
+$V$'' can only rely on unguaranteed inductive bias. $\square$
+
+\textbf{(4c)}: The Kalai--Vempala theorem\cite{kalai-vempala-2023-calib} proves that any
+language model calibrated with human truth must give wrong answers at points of unavoidable
+ignorance (whose probability mass is positive by information-theoretic lower bounds). Applied
+to queries ``about one's own state'': the state space $\R^d$ is far larger than the text-pattern
+space the corpus can cover, so ignorance points are dense in state space and hallucination is
+unavoidable. This part is grade B (it depends on the calibration definition and on the
+interpretation of the query space). $\square$
+\end{proof}
+
+\begin{remark}[Significance for the metacognitive-representation criterion $\mathrm{A}_4$]
+The paper's authors admit that criterion (4) (metacognitive representation) ``cannot be
+directly verified'' and ``we do not do so in this work''\cite{lindsey-2026-introspection}.
+Theorem 4 gives a structural explanation of this phenomenon: the existence of metacognitive
+representation would require a ``representation of a representation of the state'' inside the
+model, processed at a second level; but the generation objective (likelihood) does
+\textbf{not distinguish} between implementations with and without metacognitive
+representation; both are equally likely. The presence or absence of metacognitive
+representation is therefore a contingent by-product of inductive bias, and the paradigm
+provides no structural guarantee; any metacognitive-representation signature observed by the
+paper (if any) cannot be distinguished from ``shallow shortcut circuits'' (the simpler-mechanism
+conjecture the paper itself lists in Section 10.3\cite{lindsey-2026-introspection}).
+\end{remark}
+
+\subsection{Theorem 5: No Privileged Channel}
+
+\begin{theorem}[No privileged channel]\label{thm:privilege}
+Let $\mathcal{I}$ satisfy $\Pi_1$--$\Pi_4$. Then:
+
+\begin{enumerate}[align=left, labelwidth=!, labelsep=0.8em, leftmargin=!, itemindent=0pt]
+\item[(\textbf{5a})\textbf{Public computability}] Any report $R$ of the model is publicly
+computable (Definition \ref{def:public}): a third party holding $(\theta, c, \xi)$ can
+reproduce the distribution of $R$.
+\item[(\textbf{5b})\textbf{Privileged-access criterion fails}] Paradigm $\Pi$ does not satisfy
+the privileged self-access criterion of Song et
+al.\cite{song-privileged-2025}: on any introspective task, the model performs \textbf{no
+better than} a third party of equal computational cost holding $(\theta, c)$ (the third party
+need only simulate the same kernel $p_\theta$).
+\item[(\textbf{5c})\textbf{Reportable access is weaker than external probes}] For any
+$\varepsilon \in (0, \tfrac12)$, there exists a hidden-state description function
+$f^{*}: \R^d \to \Sigma^{*}$ (a legal evaluation mapping in the sense of Definition
+\ref{def:oracle}) such that: (i) an external probe can compute $f^{*}(H_c)$ exactly by acting
+directly on $H_c$ (with a linear readout, at cost $O(d^2)$); (ii) the model's report generated
+through \textbf{any} context $c'$ describes $f^{*}(H_c)$ with accuracy $\le \varepsilon$
+(below the random baseline).
+In other words: \textbf{the model's reportable access to its own hidden state is strictly
+weaker than
+a third-party probe's read access}: there exist state-description functions that a probe
+reads exactly while the model cannot reliably report (in the sense of Theorem 1b, no
+structural guarantee).
+\end{enumerate}
+\end{theorem}
+
+\begin{proof}[Proof sketch]
+\textbf{(5a)}: Immediate from Definition \ref{def:public}: $R \sim p_\theta(\cdot\mid c)$,
+and $p_\theta$ is determined by $(\theta, c)$. $\square$
+
+\textbf{(5b)}: The criterion of Song et al.\ requires the introspective process to be ``more
+reliable than any third-party process of equal or lower computational cost''. Let a third party
+$T$ hold $(\theta, c)$ (or equivalently $D$, $A$ and the random seed, so that $\theta$ can be
+reproduced). $T$ computes $p_\theta(\cdot\mid c)$ and samples; the resulting distribution
+is \textbf{pointwise identical} to the model's own report distribution. Consequently the
+model's
+``introspective reliability'' $\le$ third-party reliability; the criterion fails. $\square$
+
+\textbf{(5c)}: (i) The probe holds the hidden state $H_c$ and the description convention, and
+computes $f^{*}(H_c)$ directly (a linear readout costs $O(d^2)$). (ii) Take
+$f^{*} := O^{*}$ to be the legal evaluation mapping from Theorem 1b on which the model fails
+($\mathcal{R}_{\mathrm{int}}^{O^{*}}(\theta) \ge 1-\varepsilon$, i.e., accuracy
+$\le \varepsilon$); its existence is guaranteed by Theorem 1b (greedy-decoding version);
+the failure holds for the model's \textbf{any} context $c'$ (the risk is integrated over the
+query distribution $\mu$, and the choice of context does not change the kernel $p_\theta$).
+(More plainly: the model's ``report'' must pass through the frozen text kernel $p_\theta$, which
+is trained only to match the text statistics of $D$; the probe acts directly on the state
+manifold, without the text bottleneck.) $\square$
+\end{proof}
+
+\begin{corollary}[Structural failure of criterion $\mathrm{A}_3$]\label{cor:a3}
+In any paradigm satisfying $\Pi_1$--$\Pi_4$, the human-significance introspective criterion
+$\mathrm{A}_3$ (internality) and the privileged-access requirement of Song et al.\ do not
+hold: the report path is causally indistinguishable from the ``system's own outputs'' (publicly
+computable), and there exists no private state channel accessible only to the ``system itself''
+and not reproducible by a third party.
+\end{corollary}
+
+\begin{remark}[On the paper's ``internality'' criterion]
+The paper takes, in the injection experiments, ``detecting the injected concept \textbf{before}
+uttering it'' as evidence of internality. Theorem 5 shows that this behavior is a public
+function of $(\theta, c, u)$ ($u$ the injected vector): the experimenter knows $u$, and any
+analyst holding $(\theta, c, u)$ can predict the model's detection behavior. Thus ``noticing
+before output'' does not imply that the model possesses an externally irreproducible private
+channel; it only shows that the model's \textbf{behavior} is the result of internal
+computation, a trivial property of any computer. Human-significance introspection requires
+\textbf{privacy in the information-theoretic sense} (the model can know what the outside
+cannot equally know); Theorem 5 proves that no such privacy exists in paradigm $\Pi$.
+\end{remark}
+
+\subsection{Theorem 6: No Self-Model Evolution}
+
+\begin{theorem}[No self-model evolution]\label{thm:selfmodel}
+Let $\mathcal{I}$ satisfy $\Pi_1$--$\Pi_3$. Define the \textbf{self-model} as the map
+$g_\theta: Q \to \Delta(\Sigma^{*})$, $g_\theta(q) = p_\theta(\cdot \mid q)$
+(from query to report distribution). Then:
+
+\begin{enumerate}[align=left, labelwidth=!, labelsep=0.8em, leftmargin=!, itemindent=0pt]
+\item[(\textbf{6a})\textbf{Constant at inference}] $g_{\theta(t)} = g_{\theta(0)}$ for all
+$t$: the self-model is a constant function during inference.
+\item[(\textbf{6b})\textbf{Capped expressivity}] Growth of runtime ``self-knowledge'' is
+confined to in-context simulation: the family of ``updated self-models'' expressible at any time
+is $\{ g_\theta(\cdot \mid c) : \abs{c} \le C \}$, whose cardinality is
+$\le \abs{\Sigma}^{\le C} \le (C+1)\abs{\Sigma}^{C}$, \textbf{not growing with time}.
+\item[(\textbf{6c})\textbf{No plasticity}] The generation kernel $p_\theta$ does not change
+with any introspective event: for any report sequence $r_1, \dots, r_k$ and any query $q$,
+$g_\theta(q \mid c \| r_1 \| \dots \| r_k)$ and $g_\theta(q \mid c)$ are \textbf{the same
+kernel} evaluated on different inputs; the system's ``self-correction'' always changes the
+input, never the system itself.
+\end{enumerate}
+\end{theorem}
+
+\begin{proof}[Proof sketch]
+\textbf{(6a)}: $\Pi_2$ gives directly $\theta(t) = \theta(0)$, hence $g_{\theta(t)} =
+g_{\theta(0)}$. $\square$
+
+\textbf{(6b)}: By $\Pi_3$, the runtime context satisfies $\abs{c} \le C$; the set of all
+possible contexts $\Sigma^{\le C}$ has cardinality $\le (C+1)\abs{\Sigma}^{C}$ (finite);
+$g_\theta(\cdot\mid c)$ as a function of $c$ takes at most as many values as its domain.
+$\square$
+
+\textbf{(6c)}: $p_\theta$ is a fixed conditional probability kernel ($\Pi_2, \Pi_3$);
+``self-correction'' merely concatenates the report $r$ into the input $c$. If two runs share the
+same context, their output distributions are pointwise identical; there is no
+``learned change'' of any kind. $\square$
+\end{proof}
+
+\begin{remark}[Contrast with the self-model-update function of human introspection]
+A core function of human introspection is \textbf{self-model updating}: by reflecting on one's
+own errors (introspective events) one adjusts subsequent behavior and beliefs; this requires
+plasticity (synaptic updates), i.e., $g_{t+1} = \mathrm{Update}(g_t, R_t)$ with
+$\mathrm{Update} \ne \mathrm{Id}$. Mathematically, the ``self-knowledge'' of a plastic system
+accumulates over time and its expressivity is not bounded by a context window; paradigm-$\Pi$
+systems are doubly capped by $C$ and by the frozen kernel. The importance of plasticity for
+continual learning, and the mechanism of its loss in fixed networks, are analyzed
+mathematically by Joudaki et al.\cite{joudaki-2025-plasticity} and in the classical plasticity
+literature\cite{dayan-abbott-2001}. The mathematical core of this theorem (6a--6c) is grade A;
+the premise that ``human introspection is necessarily coupled to self-model updating'' is grade
+B.
+\end{remark}
+
+\subsection{Relations among the Theorems and Exclusion of Counterexamples}
+
+\begin{enumerate}
+\item \textbf{Independence}: the six theorems target different criteria (Table
+\ref{tab:thm-criteria}) and do not imply one another: Theorem 1 (information gap,
+$\mathrm{A}_1$), Theorem 2 (objective mismatch, $\mathrm{A}_1$), Theorem 3 (closed loop,
+$\mathrm{A}_5$), Theorem 4 (verification, $\mathrm{A}_4$), Theorem 5 (privilege,
+$\mathrm{A}_3$), Theorem 6 (evolution, $\mathrm{A}_5$). Theorem 1b is the common tool
+(NFL argument) for Theorems 2, 4b, and 5c.
+\item \textbf{Exclusion of counterexamples}: if one claimed to have constructed a system
+$\mathcal{S}$ satisfying $\mathrm{A}_1$--$\mathrm{A}_5$ within the paradigm, then by
+definition $\mathcal{S}$ either modifies its weights (violating $\Pi_2$; its ``introspection''
+then relies on online learning and lies outside the paradigm), or uses an external verifier
+(violating $\Pi_4$), or exploits state labels in the corpus (violating $\Pi_5$), or possesses
+a private state channel (violating the premise of Theorem 3a). The five postulates are therefore
+``counterexample-immune'': any genuine counterexample must fall outside the paradigm.
+\item \textbf{Sufficiency of the postulates}: we do not claim that the postulates
+$\Pi_1$--$\Pi_5$ are the unique correct formalization of ``Transformer + static pretraining +
+autoregressive generation'' (a grade-C judgment), but we do claim that any reasonable
+formalization must include $\Pi_2$ (frozen), $\Pi_3$ (autoregressive with bounded context),
+and $\Pi_5$ (no state labels); they are the defining features of the paradigm (the
+relaxation scenarios are discussed in Section 5.1).
+\end{enumerate}

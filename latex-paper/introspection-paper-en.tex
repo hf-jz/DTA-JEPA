@@ -1,0 +1,174 @@
+\documentclass[a4paper]{article}
+\usepackage{geometry}\geometry{a4paper,left=2.5cm,right=2.5cm,top=3cm,bottom=2.5cm}
+\usepackage{setspace}\onehalfspacing
+\usepackage{fancyhdr}\pagestyle{fancy}\fancyhf{}
+\fancyhead[L]{\small A No-Go Theorem for Introspection in Pretrained Generative LLMs}
+\fancyhead[R]{\small\thepage}\renewcommand{\headrulewidth}{0.5pt}
+\usepackage[colorlinks=true,linkcolor=blue]{hyperref}
+\usepackage{amsmath,amssymb,mathtools}
+\usepackage{seqsplit}
+\allowdisplaybreaks
+\sloppy
+\emergencystretch=2em
+\usepackage{tikz}\usetikzlibrary{calc,shadows,fadings,decorations.pathmorphing,patterns,backgrounds,arrows.meta,positioning}
+\usepackage{pgfplots}\pgfplotsset{compat=1.17}
+\usepackage{xcolor,titlesec,enumitem}
+\definecolor{fo}{RGB}{255,120,20}\definecolor{fy}{RGB}{255,200,50}
+\definecolor{fr}{RGB}{220,40,20}\definecolor{db}{RGB}{10,10,20}
+\definecolor{sb}{RGB}{40,80,140}\definecolor{gd}{RGB}{200,160,40}
+\definecolor{redColor}{RGB}{227,0,26}
+\definecolor{greenColor}{RGB}{0,120,31}
+\definecolor{grayColor}{RGB}{32,32,32}
+\definecolor{TitleGreen}{RGB}{0,120,55}
+\usepackage{graphicx}
+\usepackage{array}
+\usepackage{listings}
+\usepackage{booktabs}
+\usepackage{multirow}
+
+% ---- listings configuration ----
+\definecolor{codebg}{RGB}{248,248,252}
+\definecolor{codeframe}{RGB}{200,200,220}
+\lstset{
+  basicstyle=\footnotesize\ttfamily,
+  backgroundcolor=\color{codebg},
+  frame=single,
+  rulecolor=\color{codeframe},
+  framerule=0.5pt,
+  breaklines=true,
+  numbers=left,
+  numberstyle=\tiny\color{gray},
+  numbersep=5pt,
+  tabsize=2,
+  showstringspaces=false,
+  keywordstyle=\color{sb}\bfseries,
+  commentstyle=\color{grayColor}\itshape,
+  stringstyle=\color{redColor},
+  captionpos=b,
+  aboveskip=8pt,
+  belowskip=8pt,
+}
+\titleformat{\section}{\normalfont\Large\bfseries\sffamily\color{sb}}{\thesection}{1em}{}
+\titleformat{\subsection}{\normalfont\large\bfseries\sffamily\color{sb!80}}{\thesubsection}{1em}{}
+\titleformat{\subsubsection}{\normalfont\normalsize\bfseries\sffamily\color{sb!60}}{\thesubsubsection}{1em}{}
+
+% Frequently used mathematical notation
+\newcommand{\R}{\mathbb{R}}
+\newcommand{\N}{\mathbb{N}}
+\newcommand{\E}{\mathbb{E}}
+\newcommand{\norm}[1]{\left\lVert #1 \right\rVert}
+\newcommand{\abs}[1]{\left\lvert #1 \right\rvert}
+\newcommand{\sgn}{\operatorname{sgn}}
+\newcommand{\KL}[2]{D_{\mathrm{KL}}\!\left(#1\,\|\,#2\right)}
+\newcommand{\TV}[2]{d_{\mathrm{TV}}\!\left(#1,#2\right)}
+\newcommand{\supp}{\operatorname{supp}}
+\newcommand{\doop}{\operatorname{do}}
+\newcommand{\indep}{\perp\!\!\!\perp}
+
+% ---- Theorem environments (numbered in the style ``X.Y.Z'') ----
+\usepackage{amsthm}
+\newtheoremstyle{cnplain}{10pt}{10pt}{\normalfont}{0pt}{\bfseries\color{sb}}{.}{.5em}{}
+\newtheoremstyle{cndef}{10pt}{10pt}{\normalfont}{0pt}{\bfseries\color{sb!80}}{.}{.5em}{}
+\theoremstyle{cnplain}
+\newtheorem{theorem}{Theorem}
+\newtheorem{corollary}{Corollary}
+\newtheorem{lemma}{Lemma}
+\theoremstyle{cndef}
+\newtheorem{definition}{Definition}
+\newtheorem{assumption}{Assumption}
+\newtheorem{remark}{Remark}
+\newtheorem{example}{Example}
+\newtheorem*{proposition}{Proposition}
+\newtheorem*{restate}{Theorem}
+\newtheorem*{restatecor}{Corollary}
+\renewcommand{\proofname}{Proof}
+
+\title{\bfseries\Large Introspective Capacity of Pretrained Generative Language Models:\\[2pt]
+A No-Go Theorem under Static Pretraining and Autoregressive Generation}
+\author{Sheng Cheng\textsuperscript{a,*}\\
+\normalsize\textsuperscript{a} Hefei Jiuzhai Big Data Technology Co., Ltd., Hefei, China\\
+\normalsize\textsuperscript{*} Corresponding author. E-mail: c.sheng@cumt.edu.cn}
+\date{\today}
+
+\begin{document}
+\maketitle
+
+\begin{abstract}
+\noindent This paper provides a mathematical proof of the following proposition $P$:
+within the technical paradigm $\Pi$, namely Transformer architecture + static pretraining +
+autoregressive generation, no pretrained generative large language model possesses
+\textbf{introspective capacity in the human sense}.
+
+\medskip
+\noindent ``Introspection in the human sense'' is operationalized as five necessary criteria
+($\mathrm{A}_1$--$\mathrm{A}_5$): accuracy (the self-report agrees with the system's true
+internal state), grounding (the self-report depends causally on the state it reports),
+internality (that causal dependence does not pass through the system's own sampled outputs),
+metacognitive representation (the system registers, before reporting, the second-order fact
+``I am in state $s$''), and closed-loop plasticity (an introspective event can change the
+system's future internal state through a \textbf{private} channel, not merely through public
+text).
+
+\medskip
+\noindent Under explicit assumptions ($\Pi_1$--$\Pi_5$) this paper proves six theorems.
+\textbf{Theorem 1} (absence of an introspective information channel): under the paradigm's
+sampling model, the report $R$ and the hidden state $H$ are conditionally independent given
+the public pair $(\theta,c)$, i.e., $I(R;H\mid\theta,c)=0$; the training objective provides
+no supervision for the ``ground-truth introspection mapping'', so introspective accuracy admits
+\textbf{no nontrivial PAC-style guarantee} (otherwise contradicting the No-Free-Lunch
+theorem). \textbf{Theorem 2} (proxy-objective mismatch): the text-likelihood objective is
+statistically orthogonal to the introspective target ($O^{*} \indep D \mid \theta$); under
+the absence of state labels ($\Pi_5$), maximizing text likelihood does \textbf{not
+constrain}, and can strictly harm, introspective accuracy (a strict instantiation of Goodhart
+regression). \textbf{Theorem 3} (closed-loop failure): frozen weights at inference ($\Pi_2$)
+imply that the system possesses no private self-update channel independent of the public text
+channel; all ``self-influence'' must pass through the context channel, whose information content
+is bounded above by $C\log\abs{\Sigma}$ bits. \textbf{Theorem 4} (generation is not
+verification): paradigm $\Pi$ implements only the sampling kernel $p_\theta$, not a grounding
+verifier; a model's judgment of whether its own statement is ``grounded'' is itself a sample of
+corpus statistics, not an evaluation of truth. \textbf{Theorem 5} (no privileged channel):
+every report can be reproduced by any third party holding $(\theta,c)$ at equal computational
+cost, so the ``privileged self-access'' criterion fails; moreover, there exist hidden-state
+description functions that an external probe reads exactly yet the model cannot reliably
+report through its text channel. \textbf{Theorem 6} (no self-model evolution): the self-model
+$g_\theta$ is a constant function throughout inference; the growth of runtime
+``self-knowledge'' is doubly capped by the context window $C$ and the frozen kernel $p_\theta$.
+
+\medskip
+\noindent It follows that, within paradigm $\Pi$, any system can achieve at most \textbf{weak
+functional self-report}: accuracy unguaranteed, ungrounded in the native generative regime,
+no private closed loop, no privileged channel, and unable to drive self-model evolution. The
+empirical findings of the Anthropic concept-injection paper (arXiv:2601.01828), with a
+success rate of about 20\%, strong context dependence, zero net benefit for base models, an
+unverifiable metacognitive-representation criterion, and an explicit denial of human-like
+self-awareness, agree completely with the theorems above and are, to a large extent, their
+necessary corollaries.
+
+\medskip
+\noindent The paper also draws its boundaries precisely: every impossibility theorem
+presupposes paradigm $\Pi$; once any pillar is relaxed (online plasticity, a non-static
+corpus, a non-textual interface, an explicit verifier), the corresponding theorems cease to
+hold. Accordingly, this paper does \textbf{not} support the absolutist claim ``never'', but
+only ``impossible within the current paradigm'', which is exactly the precise content of
+proposition $P$.
+
+\medskip
+\noindent\textbf{Keywords}: introspection; autoregressive large language models; static
+pretraining; information theory; computational learning theory; No-Free-Lunch theorem;
+Goodhart's law; causal inference; metacognition
+\end{abstract}
+
+\clearpage
+
+% ══════════════════════════════════════════════════════════════════
+\include{ch1-en}
+\include{ch2-en}
+\include{ch3-en}
+\include{ch4-en}
+\include{ch5-en}
+\include{ch6-en}
+\include{appendix-a-en}
+\include{appendix-b-en}
+\include{refs}
+
+\end{document}

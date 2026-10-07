@@ -1,0 +1,278 @@
+\section{Method: DTA-JEPA}\label{sec:model}
+
+\subsection{Problem setup}
+
+We consider trajectories of observations $o_t\in\R^{n_o}$ (RGB frames plus proprioception),
+actions $a_t\in\R^{n_a}$, and a goal observation $o_g$. A latent world model consists of an
+encoder $E_s$, an action encoder $E_a$ and a predictor $F$:
+\begin{equation}
+z_t = E_s(o_t,p_t),\qquad u_t = E_a(a_t),\qquad
+(\yhat_{t+1},\Sigma_{t+1}) = F(z_{t-K+1:t},u_{t-K+1:t},u_t),
+\end{equation}
+trained on reward-free transitions $\mathcal D_{\mathrm{off}}=\{(o_t,a_t,o_{t+1})\}$ by latent
+prediction. Goal-conditioned planning minimises a latent cost over an action sequence of
+horizon $H$, MPC executes the first $c$ actions, and the loop repeats.
+
+The adaptation problem: after each executed chunk we observe a new transition
+$(o_t,a_t,o_{t+1})$ and may update a subset $\Omega$ of parameters before replanning. AdaJEPA
+takes exactly one gradient step on $\Omega=\{\text{predictor last block},\text{encoder head}\}$
+at a fixed learning rate. DTA-JEPA makes three changes: \emph{what} is updated (a decoupled
+fast parameter set), \emph{how much} (an uncertainty-allocated budget), and \emph{for how
+long} (state carried across episodes).
+
+\subsection{Encoders and goal conditioning}\label{sec:enc}
+
+The state encoder is a from-scratch convolutional trunk followed by an adaptable projection
+head,
+\begin{equation}
+z_t = \mathrm{LN}\!\Big(W_h\big[\,\mathrm{body}(o_t);\,\phi(p_t)\,\big]\Big),\qquad
+\mathrm{body}:\ 64{\times}64{\times}3 \xrightarrow{\ \text{4 conv stages}\ } 128{\times}4{\times}4,
+\end{equation}
+where $\phi$ is a small MLP over proprioception. The final LayerNorm is not cosmetic: without
+it, the cheapest way for $W_h$ to reduce prediction error is to shrink every latent towards
+zero, which is exactly the collapse we observed and had to fix at the source
+(\S\ref{sec:collapse}). Normalising the output bounds the per-sample scale, so the encoder must
+encode \emph{direction}.
+
+Two design choices follow the human-inspired architecture of Cerebro \cite{cerebro-internal}
+and LeWM's stability argument \cite{maes-2026-lewm}: (i) no pre-trained semantic encoder and
+no EMA---we train everything end-to-end from pixels; (ii) fusion happens \emph{after}
+prediction: the goal is encoded with the same encoder, and the interaction between the current
+prediction and the goal takes place in the cost function, not by concatenating modalities
+before the predictor. All modalities share one latent width $d$.
+
+Proprioception deliberately excludes the manipulated object's pose: including it would let the
+model bypass vision entirely and would make the visual-shift suite vacuous. The encoder head
+$W_h$ and $\phi$ belong to the fast parameter set; the trunk belongs to the slow set.
+
+\subsection{Dual-timescale recursive predictor}\label{sec:predictor}
+
+\paragraph{Slow module (context).} A short history of $K=3$ latent--action pairs is embedded
+into $K$ tokens, $x_i = W_s[z_i;u_i]$, and passed through $L_S$ pre-norm transformer blocks;
+the last token is the dynamics context
+\begin{equation}
+c_t = \mathrm{Transformer}_{L_S}(x_{1:K})_K .
+\end{equation}
+$c_t$ is the slow state: it summarises "what the dynamics look like here" and is the only
+channel through which the slow timescale influences prediction. It is deliberately
+\emph{never} updated online.
+
+\paragraph{Fast module (recursive refinement).} The next latent is obtained by recursing in
+latent space from the context,
+\begin{equation}
+\yhat^{(0)} = c_t + u_t,\qquad
+\yhat^{(k)} = \yhat^{(k-1)} + g_{\f}\!\big([\yhat^{(k-1)},c_t] + u_t\big),\quad k = 1,\dots,K_t,
+\label{eq:refine}
+\end{equation}
+where $g_{\f}$ is a single pre-norm transformer block with LoRA adapters, and the update is
+residual. Each depth $k$ carries its own mean head $W_\mu$ and log-variance head $W_{\log\sigma^2}$:
+\begin{equation}
+\hat\mu^{(k)} = W_\mu \mathrm{LN}\big(g_{\f}^{(k)}\big),\qquad
+\log\hat\sigma^{2(k)} = W_{\log\sigma^2}\big(\hat\mu^{(k)}\big).
+\end{equation}
+The number of refinement steps $K_t\in[K_{\min},K_{\max}]$ is chosen by the controller
+(\S\ref{sec:ctrl}); the module also reports a per-sample halting depth $k^\star$, the first
+depth at which the relative change $\norm{\yhat^{(k)}-\yhat^{(k-1)}}/\norm{\yhat^{(k-1)}}$
+falls below $\epsilon$.
+
+This is the HRM/TRM structure transplanted into a world model: a slow module supplies a
+context (HRM's high-level module) and a fast module iterates on a latent answer (TRM's
+recursive improvement), with supervision at every depth. Two properties matter for
+adaptation: the refinement is parameter-efficient (the fast set is $\sim$0.3M parameters), and
+additional \emph{compute} is a first-class axis of adaptation---under shift we can spend more
+refinement steps instead of larger gradient steps.
+
+\paragraph{Multi-step rollout and inverse dynamics.} Planning rolls the same module forward,
+re-inserting each predicted latent into the history. An auxiliary inverse-dynamics head
+$G_\omega([z_t;\sgt(z_{t+1})])\to a_t$ grounds the latent in actions.
+
+\subsection{Uncertainty decomposition and surprise}\label{sec:unc}
+
+We distinguish three quantities, each with a distinct role.
+
+\paragraph{Aleatoric uncertainty} is the predicted diagonal Gaussian:
+$\mathcal L_{\mathrm{unc}} = \tfrac12\big[(\yhat-\sgt(z))^\top\Sigma^{-1}(\yhat-\sgt(z)) +
+\log\det\Sigma\big]$.
+
+\paragraph{Epistemic uncertainty} is the MC-dropout spread of the R-module,
+$\Sigma_{\mathrm{epi}} = \mathrm{Var}_m[\hat\mu_m]$ over $m=4$ stochastic passes, computed only
+when the controller requests it.
+
+\paragraph{Surprise} is the Mahalanobis residual of the transition actually observed,
+\begin{equation}
+s_t = (\yhat_{t+1}-\sgt(z_{t+1}))^{\top}\big(\Sigma_{\mathrm{al}}+\Sigma_{\mathrm{epi}}\big)^{-1}
+(\yhat_{t+1}-\sgt(z_{t+1})),
+\label{eq:surprise}
+\end{equation}
+i.e.\ "how implausible is what just happened under the current model". Following LeWM
+\cite{maes-2026-lewm}, surprise is the natural detector of events the model cannot represent;
+we promote it from a diagnostic to the control signal of the whole adaptation loop.
+
+\subsection{Uncertainty-allocated adaptation controller}\label{sec:ctrl}
+
+Let $\bar s_t$ be an exponential moving average of surprise and let
+$r_t = s_t/\bar s_t$ be the relative surprise. Define the allocation
+\begin{equation}
+\pi_t = \sigma\big(\gamma (r_t-1)\big)\in(0,1),\qquad
+U_t = \lfloor U_{\min}+\pi_t(U_{\max}-U_{\min})\rceil,\quad
+\eta_t = (1-\pi_t)\eta_{\min}+\pi_t \eta_{\max},
+\end{equation}
+\begin{equation}
+K_t = \lfloor K_{\min}+\pi_t(K_{\max}-K_{\min})\rceil .
+\end{equation}
+With defaults $[U_{\min},U_{\max}]=[1,3]$, $[\eta_{\min},\eta_{\max}]=[0.2,5]\times\eta_f$ and
+$[K_{\min},K_{\max}]=[1,4]$, this yields a concrete statement: \emph{when the model already
+predicts the environment, DTA-JEPA is as cheap as AdaJEPA (one step, short recursion); when
+the model is wrong, it spends steps, learning rate and refinement depth in proportion to how
+wrong it is.} The same $\pi_t$ scales the planning penalties $\beta,\gamma$
+(\S\ref{sec:safe}) and the memory write priority (\S\ref{sec:mem}).
+
+\subsection{Dual memory}\label{sec:mem}
+
+\paragraph{Episodic memory} stores latent transitions $(z,u,z')$---never pixels---with
+priority
+\begin{equation}
+\mathrm{prio}(z,u,z') = \lambda_1 s + \lambda_2\,\mathrm{tr}\,\Sigma_{\mathrm{epi}}
++ \lambda_3\,\mathrm{novelty}(z),\qquad
+\mathrm{novelty}(z)=\exp\!\big(-{\textstyle\min_m}\norm{z-z_m}^2/\tau\big).
+\end{equation}
+It is a bounded priority queue, so the model keeps the transitions that were hardest to
+predict rather than merely the most recent ones. Adaptation retrieves the top-$k$ memories by
+a Gaussian similarity kernel and adds their prediction loss:
+\begin{equation}
+\mathcal L_{\mathrm{on}} = \mathcal L_{\mathrm{ada}}(\mathcal B_t)
++ \lambda_{\mathrm{ret}}\,\mathcal L_{\mathrm{ada}}(\mathcal M_{\mathrm{ret}}).
+\end{equation}
+
+\paragraph{Parametric memory} is a skill bank: fast-parameter snapshots indexed by an
+environment fingerprint $\mathrm{fp}$ (the mean latent of the episode's first frames). At
+episode start the nearest snapshot warm-starts $\f$. This is what turns per-episode adaptation
+into cross-episode learning: returning to a previously seen environment is no longer a
+cold start.
+
+\paragraph{Slow consolidation} happens once per episode, on the episodic memory, with an EWC
+penalty: $\ts \leftarrow \ts - \eta_s\nabla_{\ts}[\mathcal L_{\mathrm{ada}}(\mathcal M_e) +
+\lambda_{\mathrm{EWC}}\sum_i F_i(\theta_{s,i}-\theta_{s,i}^\star)^2]$ with $\eta_s = 10^{-6}$. The fast
+parameters are never consolidated into the slow ones during an episode, and the slow ones are
+never touched by online gradients.
+
+\subsection{Safety layer}\label{sec:safe}
+
+Four mechanisms bound the damage of a bad update.
+
+\begin{enumerate}[leftmargin=1.2em,itemsep=2pt]
+\item \textbf{Anchor ball.} $\norm{\f-\f^0}_2\le\epsilon_f$, enforced by projection after every
+step: $\f \leftarrow \f^0 + \frac{\epsilon_f}{\norm{\f-\f^0}}(\f-\f^0)$.
+\item \textbf{Validation-gated rollback.} The oldest entries of the replay buffer form a
+held-out slice; if $\mathcal L_{\mathrm{val}}^{\mathrm{new}} >
+\mathcal L_{\mathrm{val}}^{\mathrm{old}}+\varepsilon$, the update is reverted and the event is
+logged.
+\item \textbf{Immutable slow anchor.} $\ts$ (encoder trunk and S-module) receives no online
+gradient: the pretrained dynamics context cannot be corrupted by a bad episode.
+\item \textbf{Support penalty in planning.} Let $\tau_{0.95}$ be the 95th percentile of the
+training latent Mahalanobis radius. The planner minimises
+\begin{equation}
+C(a)=\sum_{k=1}^{H}\Big[\underbrace{\norm{\yhat_k-z_g}^2}_{\text{goal}}
++\underbrace{\beta\,\mathrm{tr}\,\Sigma_k}_{\text{uncertainty}}
++\underbrace{\gamma\max\big(0,\ \mathrm{Maha}(\yhat_k)-\tau_{0.95}\big)}_{\text{support}}\Big],
+\label{eq:cost}
+\end{equation}
+so imagined trajectories are penalised for leaving the region of latent space the model has
+evidence about. Frozen and AdaJEPA use $\beta=\gamma=0$ (AdaJEPA's eq.~(3)).
+\end{enumerate}
+
+\subsection{Training}\label{sec:train}
+
+\paragraph{Stage 1: pretraining.} A two-term objective in the spirit of LeWM, extended with
+deep supervision:
+\begin{equation}
+\mathcal L = \underbrace{\sum_{k=1}^{K_{\max}} w_k \mathcal L_{\mathrm{mse}}\big(\yhat^{(k)},
+\sgt(z_{t+1})\big)}_{\text{deep supervision}}
++ \underbrace{\sum_{j=1}^{J}\mathcal L_{\mathrm{mse}}\big(\yhat_{t+j},\sgt(z_{t+j})\big)}_{\text{multi-step rollout}}
++ \lambda_{\mathrm{unc}}\mathcal L_{\mathrm{unc}}
++ \lambda_{\mathrm{reg}}\mathcal R(z)
++ \lambda_{\mathrm{inv}}\mathcal L_{\mathrm{inv}},
+\end{equation}
+with $J=4$ future steps, increasing depth weights $w_k$ and the regulariser
+$\mathcal R(z)=\mathrm{SIGReg}(z)+\mathrm{VarFloor}(z)$: SIGReg is the Epps--Pulley
+isotropic-Gaussian test on random 1-D projections used by LeJEPA/LeWM
+\cite{balestriero-2025-lejepa}, and $\mathrm{VarFloor}(z)=\frac1d\sum_i\mathrm{relu}(1-\mathrm{std}_i(z))$
+is a VICReg-style \cite{bardes-2022-vicreg} hinge that keeps the statistic informative in the
+collapse regime. All targets are stop-gradient.
+
+\paragraph{Stage 2: meta-training.} The fast-parameter initialisation $\f^0$ is meta-learned
+with first-order MAML (FOMAML) over tasks defined by holding out one shape (PushBlock) or one
+layout group (maze):
+\begin{equation}
+\f' = \f^0-\eta_f\nabla_{\f}\mathcal L_{\mathrm{ada}}(\mathcal S_\tau),\qquad
+\f^0 \leftarrow \f^0-\eta_{\mathrm{meta}}\nabla_{\f^0}\mathcal L_{\mathrm{ada}}(\mathcal Q_\tau;\f'),
+\end{equation}
+so that a single online step lands in a useful region. Slow parameters are frozen during
+meta-training.
+
+\paragraph{Stage 3: deployment.} Algorithm~\ref{alg:dtajepa} summarises the online loop.
+
+\begin{figure}[t]
+\centering
+\fbox{\parbox{0.96\textwidth}{\footnotesize
+\textbf{Algorithm 1: DTA-JEPA online closed-loop adaptation}
+\begin{tabbing}
+\hspace{1.1em}\=\hspace{2.2em}\=\hspace{2.2em}\=\kill
+\textbf{input}: $\ts^0$ (immutable anchor), $\f^0$, $\mathcal M_e$, $\mathcal M_p$, $o_g$, hyper-parameters\\
+$\f \leftarrow \mathrm{Retrieve}(\mathcal M_p,\mathrm{fp})$;\quad $z_g\leftarrow E_s(o_g)$;\quad $\mathcal B\leftarrow\emptyset$\\
+\textbf{for} $t=0,\dots,T-1$ \textbf{do}\\
+\> \# 1. plan with the current model\\
+\> $c_t \leftarrow \mathrm{S}(z_{t-K+1:t},u_{t-K+1:t})$;\quad
+   $\yhat_{1:H} \leftarrow \mathrm{Rollout}(c_t,a_{t:t+H-1},K_t)$\\
+\> $a^\star_{t:t+H-1} \leftarrow \arg\min C(a)$ \hfill (eq.~\ref{eq:cost})\\
+\> \# 2. execute a chunk, observe a labelled transition\\
+\> execute $a^\star_{t:t+c-1}$;\quad observe $o_{t+1}$;\quad
+   $\mathcal B \leftarrow \mathcal B\cup\{(o_t,a_t,o_{t+1})\}$ (recent-$N$)\\
+\> \# 3. surprise and allocation\\
+\> $s_t \leftarrow$ Mahalanobis residual (eq.~\ref{eq:surprise});
+   $U_t,\eta_t,K_t \leftarrow$ Controller$(s_t)$\\
+\> \# 4. bounded adaptation of $\f$ only\\
+\> $\mathcal M_{\mathrm{ret}}\leftarrow \mathrm{TopK}(\mathcal M_e)$;\quad
+   \textbf{for} $u=1..U_t$ \textbf{do} $\f \leftarrow \f-\eta_t\nabla_{\f}[\mathcal L_{\mathrm{ada}}(\mathcal B)
+   +\lambda_{\mathrm{ret}}\mathcal L_{\mathrm{ada}}(\mathcal M_{\mathrm{ret}})]$ \textbf{end}\\
+\> $\f \leftarrow$ project($\f$, anchor ball);\quad \textbf{if} validation worsens \textbf{then} rollback\\
+\> $\mathcal M_e.\mathrm{add}(z_t,u_t,z_{t+1};s_t)$\\
+\textbf{end}\\
+\textbf{episode end} (slow timescale):\\
+\> $\mathcal M_p.\mathrm{add}(\mathrm{fp},\f)$;\quad
+   $\ts \leftarrow \ts-\eta_s\nabla_{\ts}[\mathcal L_{\mathrm{ada}}(\mathcal M_e)+\lambda_{\mathrm{EWC}}\,
+   \text{EWC}(\ts)]$
+\end{tabbing}}}
+\caption{DTA-JEPA's online loop. Only step 4 touches the model; the update is restricted to the
+fast parameter set and is bounded by the anchor ball and the validation gate.}
+\label{alg:dtajepa}
+\end{figure}
+
+\subsection{Why this should help: two propositions}
+
+\begin{proposition}[Anchor-bounded drift]
+Let the slow anchor $\ts^0$ define the reference dynamics. If (i) online updates are confined
+to $\f$ with $\norm{\f-\f^0}\le\epsilon_f$, and (ii) the predictor is Lipschitz in $\f$ with
+constant $L_P$ on the visited latent support, then for every visited $(z,u)$
+$\norm{F_{\ts^0,\f}(z,u)-F_{\ts^0,\f^0}(z,u)}\le L_P\epsilon_f$. In particular, an
+in-distribution environment whose prediction error under $\f^0$ is already below
+$L_P\epsilon_f$ cannot be made worse without bound by adaptation, whereas an unconstrained
+update of the pretrained weights carries no such guarantee.
+\end{proposition}
+
+\begin{proposition}[Compute allocation]\label{prop:alloc}
+Suppose the refinement operator contracts towards the target at a rate depending on the shift:
+$\norm{\yhat^{(k)}-\sgt(z_{t+1})}\le \rho^k\norm{\yhat^{(0)}-\sgt(z_{t+1})}+\delta$, with
+$\rho<1$ and approximation error $\delta$. Then the excess prediction error achievable with
+depth $K_t$ is monotone decreasing in $K_t$ and the number of steps needed to reach a target
+error $\varepsilon$ grows only logarithmically in the initial residual. Consequently, when
+surprise is high (large initial residual) increasing $K_t$ is the cheapest available currency,
+while when surprise is low ($\rho^k$ residual already below $\varepsilon$) all $K_t>1$ are
+wasted compute.
+\end{proposition}
+
+Both propositions are statements about our own mechanism, not about the task: they justify the
+two design choices (anchor ball on a decoupled fast set; computational allocation governed by
+residual size), and they predict the empirical pattern we look for in \S\ref{sec:results}---a
+gain that is largest out of distribution and smallest in distribution, at equal or lower
+average cost.

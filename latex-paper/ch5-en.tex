@@ -1,0 +1,128 @@
+\section{Boundary Conditions and Philosophical Positioning}
+
+This chapter delimits precisely the scope of the theorems and answers the question ``what does
+this impossibility mean''. The core position: \textbf{we reject the absolutist claim
+``never'', and endorse only ``impossible within paradigm $\Pi$''}, which is exactly the
+precise content of proposition $P$.
+
+\subsection{Relaxation Analysis: Under What Conditions Do the Theorems Fail?}
+
+The six theorems depend on different postulates. Relaxing them one by one yields the following
+failure relations:
+
+\begin{table}[htbp]
+\centering
+\caption{Correspondence between postulate relaxation and theorem failure (note: relaxing
+$\Pi_1$ is usually accompanied by relaxing $\Pi_2$, i.e., online learning implies that the
+weights are updatable at inference) \label{tab:relax}}
+\begin{tabular}{p{5.4cm}p{4.4cm}p{4.6cm}}
+\toprule
+Relaxed postulate (beyond the paradigm) & Theorems that fail & Consequence \\
+\midrule
+$\Pi_1$: allow online/continual learning & Theorems 1, 2, 6 & State labels obtainable through interaction; self-model can evolve \\
+$\Pi_2$: plasticity at inference & Theorems 3, 6 & Private closed loop becomes possible; self-correction loop appears \\
+$\Pi_3$: non-textual interface/embodiment & Theorems 1, 5 & First-person data streams available; privileged channels appear \\
+$\Pi_4$: explicit verifier/self-supervised objective & Theorem 4 & Metarepresentation structurally selectable \\
+$\Pi_5$: corpus contains state labels & Theorems 1b, 2 & Introspective accuracy obtains supervised guarantees \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\begin{remark}[Feasibility of the relaxations (grade B)]
+The table above only says ``the theorems no longer constrain''; it does not promise that
+``introspection necessarily emerges after relaxation''. The physicalist position (no known law
+of physics forbids silicon-based systems from realizing equivalent
+functions\cite{chalmers-2023-conscious, butlin-2023-conscious}) guarantees only
+\textbf{possibility}; making it a reality additionally requires solving plasticity
+preservation (see \cite{joudaki-2025-plasticity}), online objective design, and the
+engineering of first-person data streams. Our contribution is to elevate
+``impossible within the paradigm'' from intuition to theorem, thereby directing research effort
+toward \textbf{out-of-paradigm} architectural directions (online learning, embodied
+interaction, explicit self-supervision), rather than futilely piling up data within the
+paradigm.
+\end{remark}
+
+\subsection{The Philosophical Positioning of ``Human Significance''}
+
+\subsubsection{Necessity of the Criteria (grade D)}
+
+The five criteria $\mathrm{A}_1$--$\mathrm{A}_5$ are \textbf{necessary} conditions for
+``human-significance introspection'', not sufficient ones. Necessity follows from
+cross-theory consensus: Lindsey's four
+criteria\cite{lindsey-2026-introspection} (accuracy/grounding/internality/metarepresentation)
+are generally accepted necessary conditions for functional introspection; $\mathrm{A}_5$
+(closed loop) derives from the functional definition of ``introspection for online behavioral
+control''\cite{kammerer-frankish-2023}. This report does not claim sufficiency; in
+particular, it makes \textbf{no commitment} to qualia or phenomenal consciousness.
+
+\subsubsection{Functional Introspection versus Phenomenal Introspection}
+
+Distinguish two concepts: \textbf{functional introspection} (in the access sense: the system
+reliably uses its own state information to regulate behavior, corresponding to Block's access
+consciousness\cite{block-1995}) and \textbf{phenomenal introspection} (in the phenomenal
+sense: accompanied by subjective experience). The paper's authors state explicitly that their
+results ``could arguably be construed as providing evidence for a form of access
+consciousness in language models, but do not directly speak to the question of phenomenal
+consciousness at all'' (paraphrased)\cite{lindsey-2026-introspection}.
+What the theorems prove is that even the strong form of \textbf{functional}
+introspection (all of $\mathrm{A}_1$--$\mathrm{A}_5$ holding) is unattainable within paradigm
+$\Pi$. Consequently paradigm-$\Pi$ systems do not even reach strong introspection in the
+access
+sense, let alone introspection in the phenomenal sense.
+
+\subsubsection{Relation to Theories of Consciousness}
+
+Higher-order theories (HOT) regard metacognitive representation as a necessary (or
+near-necessary) condition for consciousness\cite{rosendahl-2005, lau-rosenthal-2011,
+carruthers-2017}. If HOT is accepted, then Theorem 4 (metarepresentation has no structural
+guarantee within the paradigm) implies that paradigm-$\Pi$ systems cannot \textbf{be
+guaranteed} to reach the ``consciousness candidate'' threshold in the HOT sense (both the
+absence and the presence of metarepresentation lack structural guarantees). Integrated
+Information Theory (IIT)\cite{tononi-2004, albantakis-2023-iit} and Global Workspace Theory
+(GWT)\cite{baars-1993, baars-1997} make judgments that depend on architectural details, to which the present theorems do not directly apply (the paper's Section 10.4 also
+stresses that these theories have not yet been connected to Transformer architectural
+details\cite{lindsey-2026-introspection}). Biological naturalism
+(Searle\cite{searle-1992}, Seth\cite{seth-2024}) holds that the existence of introspective
+mechanisms is orthogonal to conscious experience, which likewise does not alter the content
+of the theorems. Should future models acquire stronger cognitive and introspective capacities,
+the question of their moral status will arise\cite{long-2024-welfare}. All of these
+connections are grade-D claims; the theorems themselves depend on no theory of
+consciousness, only on the formalized criteria.
+
+\subsubsection{An Explicit Statement on ``Never''}
+
+All theorems presuppose the postulates $\Pi_1$--$\Pi_5$. The relaxation
+analysis of Section 5.1 shows that once any pillar is broken, the corresponding impossibility
+disappears. Therefore:
+
+\begin{itemize}
+\item \textbf{What this report proves}: proposition $P$, namely that within the paradigm of
+``Transformer architecture + static pretraining + autoregressive generation'', pretrained
+generative large language models do not possess introspective capacity in the human sense.
+\item \textbf{What this report explicitly does not claim}: any universal negation beyond that
+paradigm. The human brain is a physical system whose introspective function arises from
+physical laws; no known law of physics forbids non-Transformer, non-static, non-textual-
+interface silicon-based systems (e.g., neuromorphic architectures with continual online
+learning and dynamic plasticity) from realizing equivalent or human-like metacognitive
+functions. This is consistent with our core position: \textbf{rejecting the
+absolutist ``never'', and endorsing ``impossible within the current paradigm''}; the former
+lies beyond what mathematics can prove, the latter is the precise content of proposition $P$.
+\end{itemize}
+
+\subsection{Implications for Future Architectures (grade C)}
+
+\begin{enumerate}
+\item \textbf{Online plasticity first}: Theorems 3 and 6 show that the core defect of
+paradigm $\Pi$ is the frozen weights at inference. Continual learning (rather than context
+concatenation) is the mathematical prerequisite for an introspective closed loop; the design
+of plasticity mechanisms is the first priority for future introspective architectures.
+\item \textbf{First-person data streams}: Theorems 1 and 5 show that the textual interface is
+the bottleneck. Embodied interaction and internal-state self-supervision (e.g., a generative
+model predicting its own activations) can bypass ``absence of state labels'' ($\Pi_5$) and
+provide supervision signals for introspection.
+\item \textbf{Explicit self-model objectives}: Theorems 2 and 4 show that the likelihood
+objective is orthogonal to the introspective objective. An explicit ``self-model consistency''
+loss is needed (maximizing the mutual information between the model's predictions of its own
+behavior and its behavior), making metarepresentation a \textbf{selected structure} rather
+than an accidental by-product.
+\end{enumerate}

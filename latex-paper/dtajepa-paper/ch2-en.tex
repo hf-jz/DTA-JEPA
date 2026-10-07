@@ -1,0 +1,96 @@
+\section{Related Work}
+
+\subsection{JEPA world models and latent planning}
+
+LeCun's proposal for autonomous machine intelligence \cite{lecun-2022-path} places a
+joint-embedding predictive architecture at the centre of a world model: predict in
+representation space, not in observation space, and use the learned latent dynamics for
+planning. DINO-WM \cite{zhou-2025-dinowm} showed that this works zero-shot on pre-trained
+visual features, planning with either gradient descent or the cross-entropy method. Sobal et
+al.\ \cite{sobal-2025-offline} argue that reward-free offline trajectories are sufficient for
+planning with latent dynamics models. Wang et al.\ \cite{wang-2026-temporal} add a
+temporal-straightening criterion that makes latent trajectories nearly linear, which
+conditions gradient-based planning better; AdaJEPA \cite{wang-2026-adajepa} is built on top
+of that recipe. LeWorldModel \cite{maes-2026-lewm} removes the remaining fragility by training
+a JEPA end-to-end from pixels with only two loss terms---a next-embedding prediction loss and
+a regulariser that pushes latent embeddings towards an isotropic Gaussian---with no
+exponential moving average, no pre-trained encoder and no auxiliary supervision; it also uses
+prediction surprise to detect physically implausible events. V-JEPA~2
+\cite{assran-2025-vjepa2} demonstrates the same paradigm at foundation-model scale.
+
+We adopt LeWorldModel's training philosophy, because it makes a from-scratch, single-machine,
+end-to-end study feasible, and we use its surprise notion as the resource signal of our
+adaptation controller.
+
+\subsection{Test-time adaptation}
+
+Test-time training and adaptation (TTT/TTA) update a pre-trained model on the test input using
+an unsupervised objective: auxiliary rotation prediction \cite{sun-2020-ttt}, entropy
+minimisation \cite{wang-2021-tent}, augmentation consistency \cite{zhang-2022-memo}, masked
+reconstruction \cite{gandelsman-2022-mttt}, and stabilised variants for wild, non-stationary
+streams \cite{niu-2022-efficient,niu-2023-stable,wang-2022-cotta}. The literature is almost
+entirely about classifiers, where the adaptation signal is the model's own confidence. In
+latent planning the situation is different: the environment hands the agent a labelled
+transition $(o_t,a_t,o_{t+1})$ for free, so the adaptation objective is exactly the
+pretraining objective, and it can be optimised in a closed loop with control.
+
+AdaJEPA \cite{wang-2026-adajepa} is the closest work to ours and our main baseline: it adapts
+inside the MPC loop, one step per replan, restricted to the predictor's last transformer block
+and the encoder head, with a bounded replay buffer of the most recent transitions. In their
+ablations the adaptation target is chosen by hand per environment family, and stronger
+adaptation (larger learning rate, more steps, larger buffer) is sometimes beneficial
+out of distribution---but only when latency permits, and at the cost of stability in
+distribution. Our work replaces those hand-set knobs with an uncertainty-driven controller and
+makes adaptation stateful across episodes.
+
+\subsection{Adaptation in planning and control}
+
+Online model adaptation is classical in adaptive control, from self-adapting IDCOM
+\cite{foigel-1979-idcom} to online system identification in Dyna-style model-based RL
+\cite{sutton-1991-dyna,thrun-1990-planning}. Modern world-model work adapts predictors with
+latent action models \cite{gao-2025-adaworld}, residual latent-state dynamics
+\cite{lanier-2025-residual}, or data synthesis during training to close the train--test gap
+\cite{parthasarathy-2025-closing}; all of them require either target-domain fine-tuning data,
+extra online rollouts, or an outer self-improvement loop. TD-MPC2 \cite{hansen-2024-tdmpc2}
+learns a latent dynamics model and a terminal value function online but optimises a reward
+objective rather than a self-supervised latent prediction. We stay strictly in the
+reward-free, self-supervised regime.
+
+\subsection{Recursive and hierarchical latent computation}
+
+The Hierarchical Reasoning Model \cite{hrm-2025} couples a slow, high-level recurrent module
+with a fast, low-level one, and lets the fast module iterate many times per slow update;
+HRM-Text \cite{hrm-text-2026} scales that architecture to a 1B language model and shows that
+the hierarchical recurrence substitutes for a large amount of pretraining compute. Tiny
+Recursive Models \cite{tiny-recursive-2025} simplify the idea to its core: a
+$\sim$7M-parameter network recursively improves a candidate answer in latent space, updating a
+latent state and then the answer, with supervision applied at every improvement step, reaching
+strong puzzle-solving performance without scale.
+
+We take the two structural lessons---\emph{two coupled timescales} and \emph{recursion with
+deep supervision}---and place them inside a world model's predictor. To our knowledge this is
+the first recursive-refinement JEPA predictor, and the first use of refinement depth as an
+adaptation-time compute knob.
+
+\subsection{Continual learning and safety of online updates}
+
+Catastrophic forgetting \cite{mccloskey-1989-forgetting} is usually mitigated with elastic
+weight consolidation \cite{kirkpatrick-2017-ewc} or replay \cite{riemer-2019-replay}; in
+streaming TTA, parameter restoration and sharpness-aware variants are used
+\cite{niu-2023-stable,wang-2022-cotta}. Anchoring to a pretrained reference is the standard
+anti-drift device. Our safety layer is deliberately minimal and auditable: a Euclidean anchor
+ball on the fast parameters, a validation gate on a held-out slice of the replay buffer with
+rollback, an immutable slow anchor, and a support penalty expressed as a Mahalanobis radius
+computed from the training latents.
+
+\subsection{Reproducibility-focused benchmarks}
+
+PushT and PushObj \cite{chi-2025-diffusion-policy,zhou-2025-dinowm} and PointMaze
+\cite{fu-2021-d4rl} are the standard test beds for latent planning, and the diverse-maze
+protocol \cite{zhang-2026-hierarchical} standardises layout shift. Reproducing these requires
+the original assets (expert datasets, pre-trained checkpoints and MuJoCo models); where those
+are unavailable, a physics-based re-implementation that preserves the protocol is a useful
+alternative. We build ours with numpy only---impulse-based contact physics and a software
+rasteriser---so that the entire study, from data generation to planning evaluation, runs on a
+laptop CPU with no external simulator, and so that every shift condition is generated by an
+explicit, inspectable parameter.

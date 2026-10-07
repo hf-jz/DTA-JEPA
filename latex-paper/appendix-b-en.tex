@@ -1,0 +1,207 @@
+\section{Mathematical Tools and Notation}
+
+This appendix collects all notation and standard mathematical results used in the main text
+and in Appendix A, together with the connections between ``advanced theory'' and the subject
+matter. All quoted results are attributed; referenced (non-original) content does not
+participate in our grading scheme.
+
+\subsection{Notation Table}
+
+\begin{table}[htbp]
+\centering
+\caption{Principal notation\label{tab:notation}}
+\begin{tabular}{ll}
+\toprule
+Notation & Meaning \\
+\midrule
+$\Sigma$ & finite vocabulary (token vocabulary), $\abs{\Sigma} < \infty$ \\
+$\Sigma^{*}$ & set of finite strings; $\Sigma^{\le C}$ the set of strings of length at most $C$ \\
+$D$ & static pretraining corpus ($\Pi_1$) \\
+$A$ & training algorithm, $\theta = A(D)$ \\
+$\theta \in \Theta \subseteq \R^{P}$ & model parameters ($P$ the number of parameters) \\
+$p_\theta(y_{1:T}\mid c)$ & autoregressive conditional probability (Eq.~\eqref{eq:autoregressive}) \\
+$c, c_{\le t}$ & context; context at time $t$ \\
+$C$ & context window length ($\Pi_3$) \\
+$\Phi_\theta: \Sigma^{*} \to \R^{d}$ & forward function (Definition \ref{def:forward}) \\
+$H_c = \Phi_\theta(c)$ & hidden state (residual-stream activation) \\
+$R$ & self-report (Definition \ref{def:report}) \\
+$O^{*}: \Theta \times \Sigma^{*} \to \Sigma^{*}$ & ground-truth introspection mapping (Definition \ref{def:oracle}) \\
+$\ell(\cdot,\cdot)$ & report distortion measure (Definition \ref{def:metrics}) \\
+$\mathcal{R}_{\mathrm{int}}$ & introspective risk (Eq.~\eqref{eq:int-risk}) \\
+$I(X;Y)$, $I(X;Y\mid Z)$ & (conditional) mutual information \\
+$H(X)$, $H(X\mid Y)$ & (conditional) entropy \\
+$\TV{}{P,Q}$ & total variation distance \\
+$\doop(\cdot)$ & Pearl do-operator\cite{pearl-2009} \\
+$X \indep Y \mid Z$ & $X, Y$ conditionally independent given $Z$ \\
+$\mathrm{A}_1$--$\mathrm{A}_5$ & the five introspective criteria (Definition \ref{def:criterion}) \\
+$\Pi_1$--$\Pi_5$ & the paradigm postulates (Assumption \ref{asm:paradigm}) \\
+$\mathrm{CL}(\mathcal{I})$ & closed-loop effect measure (Definition \ref{def:cl}) \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsection{Information-Theoretic Tools}
+
+\begin{lemma}[Maximum likelihood approximates the data distribution]\label{lem:mle}
+Let $\theta^{*} \in \arg\min_\theta \E_{x \sim D}[-\log p_\theta(x)]$. If the model family
+$\{p_\theta\}$ is sufficiently expressive and the data are sufficient, then $p_{\theta^{*}}$
+minimizes $\KL{P_D}{p_\theta}$ ($P_D$ the empirical distribution of the corpus). In general,
+for any query context $c$,
+\begin{equation}
+p_{\theta^{*}}(\cdot \mid c) \;\approx\; P_D(\cdot \mid c),
+\label{eq:mle}
+\end{equation}
+i.e., the model's conditional output distribution approximates the \textbf{corpus-text}
+conditional distribution.
+\end{lemma}
+
+\begin{proof}[Note]
+This is the standard property of maximum likelihood estimation (KL-divergence minimization);
+see \cite{cover-thomas-2006} (Chapters 2 and 11) and \cite{shannon-1948}. Eq.~\eqref{eq:mle}
+is the formal basis of the statement in Theorem 4a that ``meta-statements are functions of
+corpus statistics''. $\square$
+\end{proof}
+
+\begin{lemma}[Data Processing Inequality (DPI)]\label{lem:dpi}
+For a Markov chain $X \to Y \to Z$, $I(X;Z) \le I(X;Y)$.
+For any function $f$, $I(X; f(Y)) \le I(X;Y)$. \cite{cover-thomas-2006}
+\end{lemma}
+
+\begin{remark}[Role of the DPI]
+Theorem 1a is essentially a ``zero-channel'' statement: $R$ and $H$ are conditionally
+independent given $(\theta,c)$, so any information channel from $H$ to an observer through
+$R$ has zero capacity, a degenerate case of the DPI. The intuition of Theorem 5c that
+``probe readout outperforms text report'' can also be viewed as a DPI variant: the report $R$
+is a function of $H$ through $p_\theta$ (the text bottleneck), and its information content is
+limited by the bottleneck.
+\end{remark}
+
+\subsection{Computational Learning Theory Tools}
+
+\begin{restate}[No-Free-Lunch (NFL)]
+Let $\mathcal{X}$ be a finite domain ($\abs{\mathcal{X}} = N$), labels
+$\mathcal{Y} = \{0,1\}$, and $D_f$ the uniform distribution on $\mathcal{X}$ (labels given
+by the function $f: \mathcal{X} \to \mathcal{Y}$). For any learning algorithm $A$ and any
+number of training samples $m \le N/2$,
+\begin{equation}
+\E_{S \sim (D_f)^m,\, f \sim \mathrm{Unif}(\mathcal{Y}^{\mathcal{X}})}\!\!\left[\, L_{D_f}(A(S)) \,\right] \;\ge\; \frac12 - \frac{m}{2N},
+\label{eq:nfl}
+\end{equation}
+where $L_{D_f}$ is the 0-1 generalization loss. In particular, for any algorithm there exists
+a label function $f$ with expected error $\ge \tfrac12 - \tfrac{m}{2N}$; when $m = 0$ (no
+samples), this lower bound is $\tfrac12$.
+\end{restate}
+
+\begin{proof}[Proof sketch]
+For a fixed training set $S$ ($m$ points), the labels of the $N - m$ unlabeled points admit
+$2^{N-m}$ equally likely assignments; the algorithm's predictions on the unlabeled points
+agree in expectation with random guessing. Averaging over $S$ and the concept uniformly and
+using symmetry yields Eq.~\eqref{eq:nfl}. For the complete proof see \cite{shalev-shwartz-2014}
+(Theorem 5.1) and \cite{wolpert-macready-1997}. $\square$
+\end{proof}
+
+\begin{remark}[The sample requirement of PAC learning]\label{thm:pac}
+(Valiant\cite{valiant-1984}; form given in \cite{shalev-shwartz-2014}) PAC learning
+presupposes \textbf{labeled samples}: if the training set is empty, any generalization
+guarantee of a learning algorithm over target functions degenerates to the NFL lower bound
+(Eq.~\eqref{eq:nfl}), one of the direct bases of Theorem 1b.
+\end{remark}
+
+\begin{remark}[The PAC-Bayes perspective]
+The PAC-Bayes theorem\cite{mcallester-1999} bounds the generalization error by the empirical
+error plus a term of the order of the square root of the ``prior $\pi$ to posterior $A(S)$ KL
+divergence''
+($\hat{L}_S(A) + O\!\left(\sqrt{(\KL{\pi}{A(S)} + \ln \tfrac{\sqrt{m}}{\delta})/m}\right)$,
+one of McAllester's forms). In the present context, the ``samples'' of the
+introspective task satisfy $S = \emptyset$ ($\Pi_5$), the empirical error $\hat{L} = 0$, and
+the prior--posterior KL term carries no information, and PAC-Bayes likewise degenerates to no
+guarantee. Theorem 1b is the constructive formulation of this observation.
+\end{remark}
+
+\subsection{Goodhart's Law and Objective Mismatch}
+
+\begin{remark}[Taxonomy of Goodhart effects]\label{thm:goodhart-tax}
+Manheim--Garrabrant\cite{manheim-garrabrant-2018-goodhart} classify Goodhart effects into
+regressional, causal, adversarial, and extremal types: the \textbf{regressional} type refers
+to the situation where ``when the proxy metric $M$ and the true objective $T$ are only
+statistically correlated, extreme optimization of $M$ drives the expectation of $T$ toward
+its prior mean rather than its optimum (and actively deteriorates $T$ when $M$ and $T$ are
+negatively correlated)''. Theorem 2 is a strict instantiation of the
+regressional type.
+\end{remark}
+
+\begin{restate}[Characterization of reward hacking (Skalse et al.)]
+(\cite{skalse-2022-reward-hacking}) For a proxy reward $\widetilde{R}$ and a true reward
+$R$: if $\widetilde{R}$ does not imply $R$ (there exist state pairs whose order relations
+differ), then, over sufficiently expressive policy classes, policies maximizing
+$\widetilde{R}$ can arbitrarily harm the expected value of $R$. A formal version requires
+expressibility and state-coverage conditions.
+\end{restate}
+
+\begin{remark}[Relation to Theorem 2]
+Theorem 2 is an \textbf{instantiation} of the two results above: the proxy metric
+$M = -\ell(\theta)$ (text likelihood), the true objective $T = -\mathcal{R}_{\mathrm{int}}(\theta)$
+(introspective fidelity). The key difference: the present work \textbf{proves} their statistical
+relation (Eq.~\eqref{eq:oracle-indep}, $O^{*} \indep D \mid \theta$), making the ``mismatch''
+a structural fact of the paradigm rather than an empirical observation.
+\end{remark}
+
+\subsection{Causal Inference Tools}
+
+\begin{definition}[Do-operator]\label{def:do}
+(Pearl\cite{pearl-2009}) $P(Y \mid \doop(X = x))$ denotes the interventional distribution of
+``forcibly setting $X$ to $x$'': delete all edges pointing into $X$ in the causal graph, set
+$X = x$, and compute the distribution of $Y$. The interventional distribution generally
+differs from the observational distribution $P(Y \mid X = x)$.
+\end{definition}
+
+\begin{lemma}[Interventions on deterministic functions]
+If $Y = f(X)$ is a deterministic function, then for any $x \ne x'$,
+$P(Y \mid \doop(X = x)) = \delta_{f(x)}$, and
+$\TV{}{\delta_{f(x)}, \delta_{f(x')}} = \mathbf{1}\{f(x) \ne f(x')\}$.
+\end{lemma}
+
+\begin{remark}[Use of interventions]
+All arguments of Theorem 3 rest on the characterization of the ``legal intervention set'':
+the only quantity intervenable within paradigm $\Pi$ is the context text ($\Pi_2, \Pi_3$).
+Intervention on the hidden state $H$ (the paper's concept injection) is an
+\textbf{out-of-paradigm} intervention, executed by an external experimenter, whose very
+existence corroborates the ``no first-person channel'' conclusion of Theorem 5 (externally
+intervenable = third-party accessible).
+\end{remark}
+
+\subsection{Algorithmic Information Theory and Recursion Theory Background}
+
+The following classical results are \textbf{not directly invoked} in the proofs of this
+report, but constitute the ``advanced-theory'' background and are relevant to the subject:
+
+\begin{enumerate}
+\item \textbf{Kolmogorov complexity}\cite{kolmogorov-1965}: the complexity of a string $x$ is
+$K(x) = \min\{|p| : U(p) = x\}$. Background connection: the complexity of the model's
+self-model $g_\theta$ does not exceed $K(\theta) + K(\text{query})$; at inference,
+$K(g_{\theta(t)})$ is constant (the algorithmic-information-theoretic counterpart of Theorem
+6a). If self-knowledge required an ``incompressible description of oneself'', its complexity
+lower bound would grow linearly with self-history, so a static system cannot satisfy this
+(Theorem 6b).
+\item \textbf{Rice's theorem}\cite{rice-1953}: nontrivial semantic properties of programs are
+undecidable. Background connection: if ``whether a model introspects'' is interpreted as a
+semantic property of the function the model computes, then no universal adjudication
+procedure exists; this supports the cautious stance of the paper and of the philosophical
+literature that ``introspective capacity cannot be directly adjudicated from behavior'', but
+our theorems take the stronger route (structural impossibility rather than
+undecidability).
+\item \textbf{Identification in the limit (Gold)}\cite{gold-1967}: language identification in
+the limit requires an \textbf{infinite evidence stream}. Background connection: the runtime
+evidence stream of paradigm $\Pi$ is the context ($\le C$ tokens), finite and bounded, so
+under the Gold framework one cannot identify ``one's own language'' (self-model), complementing
+Theorem 6b.
+\item \textbf{The free-energy principle (Friston)}\cite{friston-2010}: biological agents
+continuously minimize variational free energy about their own states. Background connection:
+human introspection can be formalized as ``online variational inference about one's own
+state'', whose update law depends on \textbf{continuous sensory and proprioceptive streams};
+paradigm $\Pi$ has no such streams (Theorem 1a) and no runtime free-energy-minimization
+mechanism (Theorem 3); the free-energy principle provides a dynamical-systems basis for
+``human introspection requires online self-inference'' (grade-D background).
+\end{enumerate}
+
+\clearpage
