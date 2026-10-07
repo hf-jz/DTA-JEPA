@@ -2,40 +2,90 @@
 
 \subsection{What the results say}
 
-\subsection{Limitations}
+The headline comparison is negative: at equal budget, a faithful AdaJEPA re-implementation, a
+frozen world model and DTA-JEPA are statistically indistinguishable over 38 conditions. That
+result is worth more than it looks, because the measurements that accompany it tell us where
+the adaptation budget is actually being spent.
 
-\paragraph{Protocol-level, not benchmark-level, replication.} Our environments are a numpy
-re-implementation. The shift families, goal sampling, planner, budget and success criteria
-match AdaJEPA, but the physics, the observation statistics and the model architectures differ
-from PushT/PointMaze with DINO-WM or ResNet encoders trained on tens of thousands of expert
-trajectories. Absolute success rates are therefore not comparable across the two papers; the
-\emph{ordering and the relative gains}, measured under identical conditions, are what our
-experiments establish.
+\begin{enumerate}[leftmargin=1.2em,itemsep=2pt]
+\item \textbf{Recursion is the part that works.} Refinement depth one to three reduces one-step
+latent error by $42\%$ in distribution and $49\%$ on unseen geometries, in a single forward
+pass, with no gradient step and no extra parameters. Depth four is worse than depth three. A
+world model that thinks twice in latent space is strictly better than one that thinks once, and
+a world model that thinks four times is not. This is the strongest empirical claim in the paper
+and it is independent of any adaptation mechanism --- with one exception that we would not have
+found without running the diagnostics on both models: under a \emph{dynamics} shift the same
+recursion makes error worse at every depth ($97.3 \to 130.5$ on the maze, \S\ref{app:maze}),
+because the operator being iterated is itself the wrong one. The lesson is not "recurse more"
+but "recurse only where the operator is trustworthy, and adapt where it is not".
+\item \textbf{Allocation is bounded by calibration, not by the policy.} Our controller allocates
+on the ratio of surprise to its running mean precisely because absolute surprise is
+miscalibrated ($82\%$ relative calibration error, variance range $2.7$--$6.8$ against an error
+range of $11.7$--$52.0$). The ratio is rank-informative ($\rho = 0.55$--$0.64$) but saturates,
+so the controller ends up near its upper envelope and behaves like a uniformly stronger update.
+Fixing the *scale* of the predictive variance --- not the allocation rule --- is the
+prerequisite for uncertainty-allocated adaptation to deliver what the design promises.
+\item \textbf{Safety mechanisms can silently become the controller.} At $\epsilon_f = 0.8$ the
+anchor ball binds after every Adam step with $594.7$k fast parameters, so the effective step
+size is set by the trust region rather than the learning rate. The mechanism behaved exactly as
+specified --- and that is why the method stopped behaving like AdaJEPA-plus-adaptation. Any
+online-adaptation method with an anchor needs the anchor radius calibrated against
+$\eta\sqrt{n}$, or the constraint must be reported as part of the method.
+\item \textbf{Some benchmark shifts do not test what they are named after.} A latent-distance
+cost cancels photometric corruption that is applied consistently to the current and goal frame:
+blur changes the one-step error by $0.02\%$, and all eight visual conditions collapse onto the
+same twelve episodes. Shift suites for latent planners must corrupt the *goal* differently from
+the *stream*, or measure a representation-level quantity (e.g.\ decoded or probe-based), or they
+are measuring episode sampling noise.
+\end{enumerate}
 
-\paragraph{Scale.} Models are $\sim$1.3M parameters, trained on a few hundred trajectories per
-environment family on a laptop CPU/MPS. This is deliberate---it makes the study fully
-reproducible---but it also means the regime is data-poor, which is precisely where test-time
-adaptation is strongest. Whether the same allocation policy helps a 100M-parameter world model
-trained on tens of thousands of trajectories is an open question; our propositions suggest the
-mechanism should, but the operating point could shift.
+\subsection{Limitations}\label{sec:limits}
 
-\paragraph{Hand-set allocation shape.} The mapping from relative surprise to steps, learning
-rate and refinement depth is a sigmoid with three hand-set ranges. It is not learned. A learned
-controller (e.g.\ bandit or meta-learned allocation) is an obvious next step, and the anchor
-ball gives the safety guarantee that would make exploration of larger budgets admissible.
+\paragraph{An unexercised mechanism.} The evaluation runs the episodes of a condition in
+parallel from the shared pretrained checkpoint, each with its own fast-parameter copy. That
+protocol exercises uncertainty allocation, episodic memory, the anchor ball and the validation
+gate, but it never reaches the episode boundary at which the skill bank is written and the slow
+parameters are consolidated (the reported skill-bank size is zero). The cross-episode claims of
+the design are therefore implemented but \emph{not measured} here; a sequential-episode suite is
+the missing experiment, and until it exists the dual-timescale title rests on the predictor's
+computational split, which \emph{is} measured, rather than on cross-episode accumulation, which
+is not.
 
-\paragraph{Reward-free scope.} We never use reward labels, which is a strength for generality
-and a limit for tasks where task-specific value information would dominate.
+\paragraph{Underpowered ablations.} Each ablation row is 84 episodes (shape) or 36 (dynamics)
+against a $\pm 5$-point sampling error and a 6-point spread across rows. We report them as
+inconclusive rather than selecting the ordering that flatters the method.
+
+\paragraph{Protocol-level, not benchmark-level, replication.} Our environments are a
+physics-based numpy re-implementation with $64\times64$ flat-shaded observations and
+$\sim$1.3M-parameter world models trained on a few hundred trajectories per family. The shift
+families, segment-based goal sampling, planner, budget, adaptation rates and success criteria
+follow AdaJEPA, but the physics, the observation statistics and the encoders differ from
+PushT/PointMaze with DINO-WM or ResNet encoders. Absolute success rates are not comparable
+across the two papers; only comparisons under identical conditions are meaningful, which is why
+every number in \S\ref{sec:results} comes from a single sweep with a fixed planner and episode
+set.
+
+\paragraph{Planner and budget.} Horizon 8 with 10 GD steps and at most 6 replans is a smaller
+budget than AdaJEPA's (horizon 25, 100 GD steps, 20 replans, 100 actions). A weaker planner
+compresses everyone's success rate toward the same ceiling and reduces the discriminating power
+of the comparison; our absolute rates (32--44\% on manipulation, 66--70\% on navigation) are
+consistent with a planner-limited regime rather than a world-model-limited one. The
+mechanistic measurements (depth curves, calibration, anchor binding) do not depend on the
+planner and are the parts of this study we would trust first.
+
+\paragraph{Cheap but not free.} Adaptation costs $13\%$ of replanning time here (AdaJEPA: $5\%$),
+because refinement depth multiplies the predictor cost and the OOD branch re-encodes the buffer
+at every step. At $K_{\max}=4$ this is a real cost that the current results do not pay back.
 
 \subsection{Conclusion}
 
-Adaptive latent world models need three separations that a single fixed test-time gradient
-step cannot provide: a separation between the slow dynamics that should not move and the fast
-computation that should, a separation between environments where the model is already right
-and environments where it is wrong, and a separation between the current episode and the
-experience accumulated so far. DTA-JEPA implements those separations with a dual-timescale
-recursive predictor, an uncertainty-allocated adaptation controller, a persistent dual memory
-with a safety layer, and reports gains over a faithful AdaJEPA re-implementation across all
-four of its shift families---largest where the model is most surprised, smallest where it is
-already adequate---while ablations attribute the improvement to allocation, memory, safety and
-recursive depth respectively.
+We set out to make test-time adaptation of latent world models *selective*: a slow dynamics
+module that should not move, a fast recursive module that should, and one surprise signal that
+decides how much of everything to spend. The selective machinery is built, specified and
+measured end to end. What the measurements show is that selection is not where the remaining
+headroom is. Refinement depth is; the scale of the predictive variance is; and the relationship
+between the anchor radius and the optimiser's natural step size is, quietly, everything. Our
+contribution to the pursuit of adaptive world models is therefore as much a set of diagnostic
+results --- with a fully reproduced protocol and a runnable benchmark that isolates each
+mechanism --- as it is an architecture, and we report the negative comparison rather than
+tuning the budget until it turns positive.

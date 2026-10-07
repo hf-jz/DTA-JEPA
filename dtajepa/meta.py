@@ -46,7 +46,10 @@ def meta_train(args):
     rng = np.random.default_rng(args.seed)
 
     params = [p for p in model.fast_parameters() if p.requires_grad]
-    lrs = [args.lr if p.shape[0] != model.d or True else args.enc_lr for p in params]
+    # the inner step must mirror deployment: the encoder head uses a learning rate
+    # two orders of magnitude smaller than the predictor's fast parameters
+    enc_ids = {id(p) for p in model.encoder.head.parameters()}
+    inner_lr = [args.enc_inner_lr if id(p) in enc_ids else args.inner_lr for p in params]
     meta_opt = torch.optim.Adam(params, lr=args.meta_lr)
     model.train(False)
     print(f"meta-training on {len(groups)} tasks, {len(params)} fast tensors", flush=True)
@@ -68,9 +71,9 @@ def meta_train(args):
         loss_s = jepa_loss(model, o, pr, a, lam_reg=1.0)["loss"]
         grads = torch.autograd.grad(loss_s, params, allow_unused=True)
         with torch.no_grad():
-            for p, g in zip(params, grads):
+            for p, g, lr in zip(params, grads, inner_lr):
                 if g is not None:
-                    p.add_(g, alpha=-args.inner_lr)
+                    p.add_(g, alpha=-lr)
         o, pr, a = batch_tensors(obs, act, state, qry, device, pmean, pstd)
         loss_q = jepa_loss(model, o, pr, a, lam_reg=1.0)["loss"]
         meta_opt.zero_grad(set_to_none=True)
@@ -98,6 +101,7 @@ if __name__ == "__main__":
     ap.add_argument("--iters", type=int, default=300)
     ap.add_argument("--bs", type=int, default=16)
     ap.add_argument("--inner_lr", type=float, default=5e-4)
+    ap.add_argument("--enc_inner_lr", type=float, default=1e-5)
     ap.add_argument("--meta_lr", type=float, default=1e-4)
     ap.add_argument("--log_every", type=int, default=25)
     ap.add_argument("--seed", type=int, default=0)

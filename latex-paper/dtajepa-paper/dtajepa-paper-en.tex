@@ -124,12 +124,25 @@ episodes.
 \medskip
 \noindent We replicate AdaJEPA's evaluation protocol---shape, visual, dynamics and layout
 shifts, with goals sampled as future frames of held-out trajectories---on a self-contained
-numpy benchmark, and compare Frozen, a faithful AdaJEPA re-implementation and DTA-JEPA under
-an identical planner, budget and episode set. DTA-JEPA improves mean planning success over
-AdaJEPA on every shift family while using \emph{fewer} gradient steps in distribution
-(where surprise is low) and more only where the model is actually wrong; ablations isolate
-the contribution of uncertainty allocation, dual memory, the safety layer, adaptive
-refinement depth and cross-episode consolidation.
+numpy benchmark, and compare Frozen, a faithful AdaJEPA re-implementation and DTA-JEPA under an
+identical planner, budget and episode set.
+
+\medskip
+\noindent The empirical result is negative and we report it as such: at equal budget the three
+methods are statistically indistinguishable (combined $43.6$, $42.8$ and $44.7\%$ over 38
+conditions, per-condition spread $21$--$22$ points), and neither the uncertainty allocation nor
+the meta-learned initialisation produces a measurable gain. We also report the three
+measurements that explain why, because they constrain the design space more than the headline
+comparison does: (i) recursive refinement reduces one-step latent error by $42\%$ from depth
+one to depth three and \emph{degrades} at depth four; (ii) the predicted variance is
+rank-informative (Spearman $0.55$--$0.64$) but scale-compressed (relative calibration error
+$82\%$), so allocation on absolute thresholds saturates and only ratio-based allocation is
+sound; and (iii) with $594.7$k fast parameters the anchor ball of radius $0.8$ binds on
+essentially every gradient step, so the safety layer---not the learning rate---sets the
+effective step size. A fourth finding is about the benchmark itself: every photometric
+corruption we apply is a no-op for a latent-distance planner that sees the corruption
+consistently in both the current and the goal frame (blur changes the one-step error by
+$0.02\%$).
 
 \medskip
 \noindent\textbf{Keywords}: latent world model; joint-embedding predictive architecture;

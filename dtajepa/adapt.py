@@ -179,7 +179,7 @@ class Adapter:
     def __init__(self, model, mode="dtajepa", lr=5e-4, enc_lr=1e-5, buffer=5, steps=1,
                  opt="adam", buffer_mode="recent", memory=None, param_memory=None,
                  safety=None, controller=None, ret_weight=0.5, n_refine=None,
-                 mc_samples=0, grad_clip=5.0):
+                 mc_samples=0, grad_clip=5.0, fold=True):
         self.model = model
         self.mode = mode
         self.base_lr, self.enc_lr = lr, enc_lr
@@ -195,7 +195,7 @@ class Adapter:
         self.n_refine = n_refine
         self.mc_samples = mc_samples
         self.grad_clip = grad_clip
-        self.params = self._param_set(model, mode)
+        self.params = self._param_set(model, mode, fold)
         self.opt = torch.optim.Adam(self.params, lr=lr) if opt == "adam" else \
             torch.optim.SGD(self.params, lr=lr)
         self.info = {"updates": 0, "steps": 0, "rollback": 0, "surprise": [], "depth": [],
@@ -203,7 +203,7 @@ class Adapter:
 
     # ---- episode lifecycle -------------------------------------------------
     @staticmethod
-    def _param_set(model, mode):
+    def _param_set(model, mode, fold=True):
         """theta_f for each adaptation mode.
 
         'adajepa'  (baseline) : direct updates of the predictor's last transformer
@@ -214,7 +214,9 @@ class Adapter:
         heads = list(model.predictor.mean_head.parameters()) \
             + list(model.predictor.r_norm.parameters()) \
             + list(model.encoder.head.parameters())
-        if mode == "adajepa":
+        if mode == "adajepa" or fold:
+            # direct updates of the predictor's last block (AdaJEPA's predlast):
+            # the LoRA path is off, so its parameters are excluded
             for m in model.predictor.r_block.modules():
                 if isinstance(m, LoRALinear):
                     for p in m.lora_parameters():

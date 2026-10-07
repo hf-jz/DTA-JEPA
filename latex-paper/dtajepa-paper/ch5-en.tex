@@ -1,12 +1,19 @@
 \section{Results}\label{sec:results}
 
-\noindent All numbers in this section are produced by the repository's evaluation entry
-point under a single command per suite, with the planner, budget, replay buffer and episode
-set held fixed across methods. Tables are generated directly from the raw JSONL results
-(\texttt{results/raw.jsonl}) by \texttt{dtajepa.report}; the LaTeX tables and figures included
-below are those generated files, not hand-transcribed numbers.
+\noindent Every number below is produced by \texttt{dtajepa.evaluate} from a single command
+per suite and aggregated by \texttt{dtajepa.report}; the tables included here
+(\texttt{results-tables.tex}) are generated files, not transcribed numbers. Raw rows are in
+\texttt{results/raw.jsonl} (114 runs), \texttt{results/ablation.jsonl} (60) and
+\texttt{results/meta.jsonl} (14).
 
-\subsection{Main comparison}
+\subsection{What the comparison can and cannot resolve}
+
+The sweep evaluates 38 (condition, seed) pairs $\times$ 3 methods, 12 episodes per run, at MPC
+horizon 8, $\le 6$ replans, 10 GD steps and a 15-step goal. With 12 episodes the per-condition
+resolution is 8.3 percentage points, and the spread across conditions is large (s.d.\ $\approx
+22$ points). Everything below is reported with that granularity in mind: differences under
+roughly 10 points per family are not distinguishable here. This is a \emph{screening}
+experiment, and we flag explicitly which conclusions the data supports.
 
 \input{results-tables}
 
@@ -14,32 +21,180 @@ below are those generated files, not hand-transcribed numbers.
 \centering
 \includegraphics[width=\textwidth]{figs/fig_success_curves.png}
 \caption{Planning success versus MPC replanning step, averaged over the conditions of each
-shift family and all seeds. Top left: PushBlock shapes seen in training; top middle: held-out
-shapes; top right: multiplicative visual corruptions (blur, salt-and-pepper, dark); bottom
-left: colour shifts; bottom middle: PointMaze dynamics shifts; bottom right: held-out maze
-layouts.}
+shift family.}
 \label{fig:curves}
 \end{figure}
 
 \begin{figure}[t]
 \centering
 \includegraphics[width=\textwidth]{figs/fig_bars.png}
-\caption{Final planning success per condition (mean $\pm$ s.d.\ over seeds).}
+\caption{Final planning success per condition. The visual-family conditions are numerically
+identical for a given method --- see \S\ref{sec:noop}.}
 \label{fig:bars}
 \end{figure}
 
-\subsection{Ablations}
+\subsection{Main comparison}
+
+\begin{table}[t]
+\centering
+\caption{Success (\%) by shift family, mean over conditions and seeds. Per-condition standard
+deviations are $15$--$32$ points, so the family means differ by well under one standard error,
+except for the visual family where the effective sample is 12 episodes rather than 96
+(\S\ref{sec:noop}).}
+\label{tab:famres}
+\begin{tabular}{lcccc}
+\toprule
+Method & Shape & Visual & Dynamics & Layout \\ \midrule
+Frozen    & 32.1 & 33.3 & 40.3 & 70.0 \\
+AdaJEPA   & 37.5 & 25.0 & 40.3 & 65.8 \\
+DTA-JEPA  & 32.7 & 40.6 & 38.9 & 68.3 \\
+\midrule
+\multicolumn{5}{l}{Combined over all 38 conditions: Frozen $43.6 \pm 22.5$, AdaJEPA $42.8 \pm 21.9$, DTA-JEPA $44.7 \pm 21.3$.}\\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\textbf{The honest summary is that the three methods are statistically indistinguishable on
+this budget.} Combined over all conditions the three means lie within $1.9$ points of each
+other against a per-condition spread of $21$--$22$ points. Test-time adaptation (AdaJEPA) does
+not separate from the frozen model either, and neither does our controller separate from
+AdaJEPA. On the maze families the frozen model is the strongest (layout $70.0$ vs
+$65.8/68.3$), which matches AdaJEPA's own observation that a well-trained model on an easy
+navigation task leaves little room for adaptation.
+
+Two things we did \emph{not} find, stated plainly because they are the claims the method was
+built to make: (i) no gain from uncertainty allocation over a fixed one-step update at equal
+budget on the manipulation families; (ii) no gain from the FOMAML initialisation (shape $32.7$
+with the plain initialisation vs $32.1$ with the meta-learned one, 14 runs each).
+
+\subsection{The visual family is a no-op for any latent planner}\label{sec:noop}
+
+The eight visual conditions produce \emph{numerically identical} per-condition results for each
+method (e.g.\ AdaJEPA $25.0\%$ on every one of default, blur, blur-strong, snp, dark, red
+agent, red block, red anchor). The reason is not encoder robustness; it is that the planner
+never sees the corruption individually. The MPC cost is a \emph{difference} of latents,
+$\norm{\yhat_k - z_g}^2$, and every photometric corruption we apply is applied to both the
+current frame and the goal frame. \S\ref{sec:calibres} quantifies it: blur at level 0.9 moves
+the one-step latent prediction error from $25.80$ to $25.79$ ($0.02\%$).
+
+This is a property of latent-distance planning rather than of our model. A consistent
+photometric transform that approximately preserves the relative geometry of the embedding
+leaves goal-conditioned planning unchanged, while colour shifts that remove the visual
+distinction between the moving object and the static reference can change it (colour conditions
+are the only visual conditions that differ at all in our data, and only by one episode).
+Strengthening the corruption does not help: strong blur (level 1.8) is identical to standard
+blur. AdaJEPA reports real degradation under these same corruptions; the difference is that
+their encoder is a frozen foundation model whose feature geometry is not invariant to the
+corruption, whereas ours is trained end-to-end on the same rendering pipeline as the
+corruptions.
+
+The consequence for the comparison is that the visual family is effectively 12 episodes
+repeated eight times, so DTA-JEPA's apparent $+15.6$-point advantage there is a difference of
+two episodes out of twelve --- i.e.\ noise.
+
+\subsection{Uncertainty diagnostics}\label{sec:calibres}
+
+\begin{table}[t]
+\centering
+\caption{Uncertainty diagnostics on the PushBlock model. \emph{mean var} is the predicted
+variance, \emph{mean err} the realised squared latent error.}
+\label{tab:calib}
+\begin{tabular}{lccccc}
+\toprule
+Stream & mean err & mean var & Pearson & Spearman & relative ECE \\
+\midrule
+in distribution & 25.80 & 22.81 & 0.38 & 0.55 & 82\% \\
+unseen shapes   & 21.69 & 21.72 & 0.45 & 0.64 & 79\% \\
+blurred ($\ell=0.9$) & 25.79 & 22.80 & 0.38 & 0.55 & 82\% \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+Three findings, each of which constrains the design.
+
+\paragraph{The variance head is rank-informative but scale-compressed.} Spearman rank
+correlation between predicted variance and realised error is $0.55$ in distribution and $0.64$
+on unseen shapes, while the reliability curve spans $2.7$--$6.8$ in predicted variance against
+$11.7$--$52.0$ in realised error: the ordering carries information, the dynamic range does not.
+The relative calibration error is $82\%$. This justifies the choice our controller makes ---
+allocate on the \emph{ratio} of surprise to its running mean rather than on an absolute
+threshold --- and warns against threshold-based OOD detection built on this head.
+
+\paragraph{Recursive refinement saturates at depth three.} Mean squared latent error per
+refinement depth is $42.5 \to 28.8 \to 24.6 \to 25.8$ in distribution and $40.5 \to 25.4 \to
+20.6 \to 21.7$ on unseen shapes, measured in one forward pass with supervision at every depth.
+This is the clearest positive result in the paper: \emph{two extra refinement steps recover
+$42\%$ of the one-step error}, and the fourth step is past the useful point --- it slightly
+increases error. It motivates both halves of the design: recursion with deep supervision is
+worth having, and adaptive halting is not optional, because spending the fourth step hurts.
+
+One qualification, from the navigation model (\S\ref{app:maze}): under the low-mass dynamics
+shift refinement makes the error \emph{worse at every depth} ($97.3 \to 130.5$). The recursion
+operator was trained under default dynamics, so iterating it amplifies the error it encodes.
+Recursion is an accuracy knob when the shift is in the input distribution and a liability when
+the shift is in the operator itself --- which is exactly the case where adaptation, not extra
+iterations, is the right currency.
+
+\paragraph{Cross-stream surprise is not comparable.} Mean in-distribution error is
+\emph{higher} than mean unseen-shape error ($25.8$ vs $21.7$). The confound is episode
+difficulty: the held-out geometries are smaller (square, I, small-T) and thus easier to predict,
+so comparing raw surprise across suites does not measure shift. Within a stream the ordering
+holds ($\rho = 0.55$--$0.64$). Any deployment that uses surprise to compare \emph{different}
+environments must normalise it, which is what a ratio-based controller does.
+
+\subsection{Adaptation statistics: the anchor binds and allocation saturates}
+
+\begin{table}[t]
+\centering
+\caption{DTA-JEPA online statistics per episode (means over all main-sweep runs).}
+\label{tab:stats}
+\begin{tabular}{lcl}
+\toprule
+Quantity & Value & Interpretation \\
+\midrule
+gradient steps per update & 2.2 & inside the intended range $[1,3]$ \\
+learning rate per update & $2.0\times10^{-3}$ & $4\times$ base rate: allocation saturates high \\
+memories retrieved per episode & 13.4 & one retrieval per update \\
+anchor projections per episode & 159 & $\approx$ every gradient step \\
+rollbacks per episode & 0.2 & validation gate rarely fires \\
+skill-bank entries & 0 & not exercised in parallel evaluation (\S\ref{sec:limits}) \\
+planning / adaptation time (s) & 33 / 6 & adaptation is $13\%$ of planning (AdaJEPA: $5\%$) \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+Two of these numbers explain the null result.
+
+\textbf{The anchor ball, not the learning rate, sets the step size.} With $594.7$k fast
+parameters and Adam, a single step of norm $\eta\sqrt{n} \approx 5\times10^{-4}\cdot 770$
+exceeds $\epsilon_f = 0.8$ immediately, so the projection fires on essentially every gradient
+step ($159$ per episode). At $\epsilon_f=0.8$ the DTA-JEPA configuration is therefore not
+"AdaJEPA plus a controller"; it is "AdaJEPA plus a hard trust region", and the ablation in
+which the safety layer is removed gives the highest shape-family number of all ablation rows
+($35.7$ vs $29.8$), consistent with the constraint being what costs accuracy.
+
+\textbf{Allocation saturates.} The controller allocates a mean learning-rate multiplier of
+$4\times$ and 2.2 steps per update --- close to its upper limit --- because predicted variance
+is systematically compressed, so surprise divided by its running mean stays above one. In this
+regime the controller is not selecting cheap in-distribution updates; it is applying a
+uniformly stronger update, which is the failure mode the design was meant to avoid.
+
+\subsection{Ablations and meta-initialisation are underpowered}
+
+The ablation rows ($7$ shape conditions $\times 12$ episodes $= 84$ episodes per row, seed 0)
+span $29.8$--$35.7\%$ on shape and $36.1$--$41.7\%$ on dynamics: a 6-point spread against
+roughly $5$ points of sampling error. We therefore report the ablation table as
+\emph{inconclusive at this budget} (raw numbers in \texttt{results/ablation.jsonl}, table on the
+project page) and take from it only two directional observations: the LoRA fast set does not
+outperform direct updates (consistent with AdaJEPA's own ablation), and removing the safety
+layer is the only change that is directionally favourable on both families.
 
 \begin{figure}[t]
 \centering
 \includegraphics[width=0.95\textwidth]{figs/fig_adapt_stats.png}
-\caption{Distribution of DTA-JEPA's online adaptation statistics across all conditions:
-surprise, allocated gradient steps, learning-rate multiplier, number of updates and retrieved
-memories. The allocation is strongly non-uniform, which is the mechanism the method claims.}
+\caption{Distribution of DTA-JEPA's allocated steps, learning-rate multiplier, retrieved
+memories and rollbacks across all main-sweep runs. The distribution is far from the intended
+"cheap in distribution, expensive under shift" separation, for the reasons given in
+\S\ref{sec:calibres}.}
 \label{fig:stats}
 \end{figure}
-
-\subsection{Uncertainty calibration and compute allocation}
-
-\subsection{Continual (cross-episode) adaptation}
-

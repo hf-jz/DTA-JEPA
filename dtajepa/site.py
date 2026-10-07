@@ -15,6 +15,8 @@ RES = os.path.join(ROOT, "results")
 DOCS = os.path.join(ROOT, "docs")
 
 PRETTY = {"frozen": "Frozen", "adajepa": "AdaJEPA", "dtajepa": "DTA-JEPA",
+          "dtajepa_meta": "DTA-JEPA + meta init", "dtajepa_nometa": "DTA-JEPA w/o meta init",
+          "dtajepa_lora": "LoRA fast set (r=4)",
           "dtajepa_nounc": "w/o uncertainty allocation", "dtajepa_nomem": "w/o dual memory",
           "dtajepa_nosafe": "w/o safety layer", "dtajepa_fixedk": "fixed refinement depth",
           "dtajepa_noslow": "w/o cross-episode consolidation"}
@@ -59,8 +61,19 @@ def main():
             p = sub.pivot_table(index="method", columns="split", values="success", aggfunc="mean")
             p.index = [PRETTY.get(i, i) for i in p.index]
             seen_tbl = table_html(p)
+        parts = []
         ab = df[df.method.str.startswith("dtajepa_")].copy()
         if len(ab):
+            parts.append(ab)
+        for extra, relabel in ((os.path.join(RES, "ablation", "all_runs.csv"), None),
+                               (os.path.join(RES, "meta", "all_runs.csv"), "dtajepa_meta")):
+            if os.path.exists(extra):
+                e = pd.read_csv(extra)
+                if relabel:
+                    e["method"] = relabel
+                parts.append(e)
+        if parts:
+            ab = pd.concat(parts)
             ab["method"] = ab["method"].map(lambda m: PRETTY.get(m, m))
             q = ab.pivot_table(index="method", columns="suite", values="success", aggfunc="mean")
             abl_tbl = table_html(q)

@@ -13,9 +13,11 @@ shifts manipulate (red agent / red block / red anchor).
 
 Everything that defines the \emph{evaluation protocol} is kept identical to AdaJEPA:
 \begin{itemize}[leftmargin=1.2em,itemsep=2pt]
-\item goals are \emph{future frames of the same held-out trajectory}, 25 steps ahead
-(\texttt{goal\_source=segments}), with trivial segments filtered out;
-\item MPC uses horizon $H=15$, executes a chunk of $c=5$ actions, at most $R=10$ replans,
+\item goals are \emph{future frames of the same held-out trajectory}, 15 steps ahead in our
+runs (AdaJEPA uses 25 with a 100-action budget; we keep a 2:1 executor-to-goal slack instead
+of 4:1 because our action cost is fixed, see \S\ref{sec:setup}), with trivial segments
+filtered out;
+\item MPC uses horizon $H=8$, executes a chunk of $c=5$ actions, at most $R=6$ replans,
 and warm-starts the remaining action sequence from the previous plan;
 \item the gradient-descent planner optimises the action sequence with Adam at learning rate
 $0.1$, initialised at zero;
@@ -68,14 +70,19 @@ penalty are computed once on the training split.
 \item \textbf{Frozen}: no adaptation (AdaJEPA's frozen baseline).
 \item \textbf{AdaJEPA}: our re-implementation of the paper's default setting---one gradient
 step per replan, learning rates $5\times10^{-4}$/$10^{-5}$, direct updates of the predictor's
-last transformer block and the encoder head, recent-5 buffer, per-episode reset.
+last transformer block and the encoder head, recent-5 buffer, per-episode reset, uncertainty
+terms switched off in the planning cost.
 \item \textbf{DTA-JEPA}: full method (dual timescale, uncertainty allocation, dual memory,
 safety layer, adaptive refinement depth, cross-episode consolidation).
-\item \textbf{Ablations}: \texttt{nounc} (no uncertainty allocation and no uncertainty terms
-in the cost), \texttt{nomem} (no episodic or parametric memory), \texttt{nosafe} (no anchor
-ball, no rollback, no support penalty), \texttt{fixedk} (fixed refinement depth), \texttt{noslow}
-(no cross-episode consolidation or skill bank).
+\item \textbf{Ablations}: \texttt{lora} (rank-4 LoRA fast set instead of direct updates),
+\texttt{nounc} (no uncertainty allocation and no uncertainty terms in the cost),
+\texttt{nomem} (no episodic or parametric memory), \texttt{nosafe} (no anchor ball, no
+rollback, no support penalty), \texttt{fixedk} (fixed refinement depth), \texttt{noslow}
+(no cross-episode consolidation or skill bank) and \texttt{nometa} (no FOMAML initialisation).
 \end{itemize}
+
+Ablations use the same world model, planner, episode set and budget as the full method, so
+each row isolates one mechanism.
 
 \subsection{Metrics}
 

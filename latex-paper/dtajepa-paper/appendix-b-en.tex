@@ -19,6 +19,32 @@ shifted upwards on shifted suites. The controller's behaviour is additionally lo
 replan, so the relationship between relative surprise and allocated compute can be read off
 directly from \texttt{results/raw.jsonl}.
 
+\subsection{The same diagnostics on the navigation model}\label{app:maze}
+
+Running the identical diagnostics on the maze model (25 training layouts, default dynamics)
+adds one finding that qualifies the depth result of \S\ref{sec:calibres}, and one that
+qualifies the calibration result.
+
+\paragraph{Refinement helps only if the recursion operator is right.} In distribution the depth
+curve repeats the PushBlock pattern: 51.9 $\to$ 44.8 $\to$ 43.3 $\to$ 46.6. But under the low-mass dynamics shift
+(\texttt{mass} $\times 0.2$) the curve is 97.3 $\to$ 99.8 $\to$ 112.0 $\to$ 130.5 --- error \emph{increases} monotonically with
+refinement depth. The refinement operator was trained under default dynamics, and iterating an
+operator that encodes the wrong dynamics amplifies rather than corrects the error. Recursion is
+therefore not a free accuracy knob: it pays when the shift is in the input distribution
+(geometry, corrupted observations) and costs when the shift is in the operator (dynamics). This
+is precisely the case that a halting rule must detect, and it is an argument for allocating
+\emph{adaptation} rather than \emph{iterations} under dynamics shift.
+
+\paragraph{Surprise detects a clean dynamics shift, but the variance ranking inverts.} The
+low-mass stream has $2.8\times$ the in-distribution prediction error, the largest and cleanest
+shift signal in this study --- comparable to the null result on PushBlock
+(\S\ref{sec:calibres}), where the held-out geometries were simply easier. Under that same
+shift, however, the predicted variance explodes relative to the error (mean variance 1072
+against a mean squared error of 131) and the rank correlation turns negative
+(Spearman $-0.18$ versus $0.79$ in distribution), with a relative calibration error of $81\%$.
+A variance head that inverts its ranking under the very shift it is supposed to flag cannot be
+used for per-sample allocation without recalibration.
+
 \subsection{Relation to AdaJEPA's hand-tuned adaptation}
 
 AdaJEPA's own ablations show that for out-of-distribution settings, "stronger adaptation---via

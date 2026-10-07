@@ -25,6 +25,7 @@ import torch
 from . import data as D
 from .adapt import Adapter, Controller, EpisodicMemory, ParamMemory, SafetyLayer
 from .envs import MazeEnv, PushEnv, corrupt, render_maze, render_push
+from .models import fold_lora
 from .plan import MPCConfig, cem_plan, gd_plan
 from .sim import OOD_SHAPES, TRAIN_SHAPES
 from .train import CKPT, load_model
@@ -34,23 +35,26 @@ RED = (0.88, 0.16, 0.14)
 
 METHODS = {
     "frozen":        dict(mode="frozen"),
-    "adajepa":       dict(mode="adajepa", lr=5e-4, enc_lr=1e-5, steps=1, buffer=5),
+    "adajepa":       dict(mode="adajepa", lr=5e-4, enc_lr=1e-5, steps=1, buffer=5, fold=True),
     "dtajepa":       dict(mode="dtajepa", lr=5e-4, enc_lr=1e-5, steps=1, buffer=5,
                           memory=256, param_memory=True, safety=True, controller=True,
-                          adaptive_compute=True, slow=True, w_unc=0.5, w_safe=0.5),
-    "dtajepa_nounc": dict(mode="dtajepa", lr=5e-4, enc_lr=1e-5, steps=1, buffer=5,
+                          adaptive_compute=True, slow=True, w_unc=0.5, w_safe=0.5, fold=True),
+    "dtajepa_lora":  dict(mode="dtajepa", lr=5e-4, enc_lr=1e-5, steps=1, buffer=5,
+                          memory=256, param_memory=True, safety=True, controller=True,
+                          adaptive_compute=True, slow=True, w_unc=0.5, w_safe=0.5, fold=False),
+    "dtajepa_nounc": dict(mode="dtajepa", fold=True, lr=5e-4, enc_lr=1e-5, steps=1, buffer=5,
                           memory=256, param_memory=True, safety=True, controller=False,
                           adaptive_compute=False, slow=True, w_unc=0.0, w_safe=0.0),
-    "dtajepa_nomem": dict(mode="dtajepa", lr=5e-4, enc_lr=1e-5, steps=1, buffer=5,
+    "dtajepa_nomem": dict(mode="dtajepa", fold=True, lr=5e-4, enc_lr=1e-5, steps=1, buffer=5,
                           memory=0, param_memory=False, safety=True, controller=True,
                           adaptive_compute=True, slow=False, w_unc=0.5, w_safe=0.5),
-    "dtajepa_nosafe": dict(mode="dtajepa", lr=5e-4, enc_lr=1e-5, steps=1, buffer=5,
+    "dtajepa_nosafe": dict(mode="dtajepa", fold=True, lr=5e-4, enc_lr=1e-5, steps=1, buffer=5,
                            memory=256, param_memory=True, safety=False, controller=True,
                            adaptive_compute=True, slow=True, w_unc=0.5, w_safe=0.0),
-    "dtajepa_fixedk": dict(mode="dtajepa", lr=5e-4, enc_lr=1e-5, steps=1, buffer=5,
+    "dtajepa_fixedk": dict(mode="dtajepa", fold=True, lr=5e-4, enc_lr=1e-5, steps=1, buffer=5,
                            memory=256, param_memory=True, safety=True, controller=True,
                            adaptive_compute=False, slow=True, w_unc=0.5, w_safe=0.5),
-    "dtajepa_noslow": dict(mode="dtajepa", lr=5e-4, enc_lr=1e-5, steps=1, buffer=5,
+    "dtajepa_noslow": dict(mode="dtajepa", fold=True, lr=5e-4, enc_lr=1e-5, steps=1, buffer=5,
                            memory=256, param_memory=False, safety=True, controller=True,
                            adaptive_compute=True, slow=False, w_unc=0.5, w_safe=0.5),
     "no_adapt":      dict(mode="frozen"),        # alias used in the ablations table
@@ -59,10 +63,15 @@ METHODS = {
 _MODEL_CACHE = {}
 
 
-def get_model(name):
-    if name not in _MODEL_CACHE:
-        _MODEL_CACHE[name] = load_model(name)
-    return _MODEL_CACHE[name]
+def get_model(name, fold=True):
+    key = (name, bool(fold))
+    if key not in _MODEL_CACHE:
+        m, ck = load_model(name)
+        if fold:
+            fold_lora(m)
+        m.eval()
+        _MODEL_CACHE[key] = (m, ck)
+    return _MODEL_CACHE[key]
 
 
 # ---------------------------------------------------------------------------
@@ -191,6 +200,7 @@ class Runner:
         ctrl = Controller() if self.m.get("controller") else None
         return Adapter(model, mode=self.m["mode"], lr=self.m["lr"], enc_lr=self.m["enc_lr"],
                        steps=self.m["steps"], buffer=self.m["buffer"], memory=self.memory,
+                       fold=self.m.get("fold", True),
                        param_memory=self.param_memory, safety=safety, controller=ctrl,
                        n_refine=None, mc_samples=4 if self.m.get("adaptive_compute") else 0)
 
@@ -255,8 +265,7 @@ def _corrupt_live(frame, kind, level, ep_idx, step):
 
 def run_condition(cond, method, n_ep, seed, cfg, verbose=False, keep_models=False):
     t_start = time.time()
-    model, ck = get_model(cond["ckpt"])
-    model.eval()
+    model, ck = get_model(cond["ckpt"], fold=METHODS[method].get("fold", True))
     r = Runner(method, model, cfg, ck["pmean"], ck["pstd"],
                ck.get("zmean"), ck.get("zstd"), ck.get("maha_thresh"))
     k = model.k
@@ -352,14 +361,15 @@ def suite_specs(suite, ckpt_push="push4", ckpt_maze="maze25", goal_gap=D.GOAL_GA
                               eval_file=f"push_eval_{sh}", seen=sh in TRAIN_SHAPES,
                               goal_gap=goal_gap))
     if suite in ("visual", "all"):
-        for label, ck, colors in (("default", None, None), ("blur", "blur", None),
-                                  ("snp", "snp", None), ("dark", "dark", None),
-                                  ("redAgent", None, {"agent": RED}),
-                                  ("redBlock", None, {"block": RED}),
-                                  ("redAnchor", None, {"anchor": RED})):
+        for label, ck, colors, lvl in (("default", None, None, 0.9), ("blur", "blur", None, 0.9),
+                                       ("blurStrong", "blur", None, 1.8), ("snp", "snp", None, 0.9),
+                                       ("dark", "dark", None, 0.9),
+                                       ("redAgent", None, {"agent": RED}, 0.9),
+                                       ("redBlock", None, {"block": RED}, 0.9),
+                                       ("redAnchor", None, {"anchor": RED}, 0.9)):
             specs.append(dict(suite="visual", label=label, ckpt=ckpt_push, kind="push",
                               shape="T", eval_file="push_eval_T_visual", corrupt=ck,
-                              colors=colors, goal_gap=goal_gap))
+                              corrupt_level=lvl, colors=colors, goal_gap=goal_gap))
     if suite in ("dyn", "all"):
         for label, ms, ds in (("default", 1.0, 1.0), ("lowMass", 0.2, 1.0),
                               ("highDamping", 1.0, 20.0)):
@@ -382,6 +392,7 @@ def attach_builders(specs, min_move=0.06):
             s["builder"] = (lambda n, sd, s=s: build_push_episodes(
                 s["eval_file"], n, sd, s["shape"], dynamics=s.get("dynamics"),
                 colors=s.get("colors"), corrupt_kind=s.get("corrupt"),
+                corrupt_level=s.get("corrupt_level", 0.9),
                 goal_gap=s.get("goal_gap", D.GOAL_GAP), min_move=min_move))
         else:
             walls = layouts["train"][0] if s.get("layout") == "train0" \

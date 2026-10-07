@@ -54,7 +54,7 @@ def collect(model, ck, name, n=384, corrupt_kind=None, level=0.9, seed=0):
                                                      return_trace=True)
     tgt = z[:, k].detach()
     err = ((mean - tgt) ** 2).sum(-1)
-    var = torch.exp(logvar.squeeze(-1)).sum(-1)
+    var = torch.exp(logvar.squeeze(-1))          # per-sample predicted variance
     # error at every refinement depth
     depth_err = ((trace - tgt[:, None]) ** 2).sum(-1)          # (B, K_max)
     return dict(err=err.numpy(), var=var.numpy(), depth_err=depth_err.numpy(),

@@ -11,7 +11,7 @@ Encoder trunk & 4 conv stages (32/64/96/128), stride 2, GroupNorm, GELU & no (sl
 Encoder proprio & MLP(4$\to$64$\to$64) & yes (slow head)\\
 Encoder head & Linear($2048{+}64\to256$) GELU Linear($256\to d$), LayerNorm($d$) & yes (fast)\\
 S-module & Linear($2d\to d$) + 2 pre-norm transformer blocks, $K=3$ tokens & no (slow)\\
-R-module & 1 pre-norm transformer block over 2 tokens + LoRA($r{=}4$) & yes (fast)\\
+R-module & 1 pre-norm transformer block over 2 tokens & yes (fast)\\
 Heads & mean Linear($d\to d$), log-variance Linear($d\to1$) & yes (fast)\\
 Action encoder & MLP($2\to64\to d$) & no\\
 Inverse dynamics & MLP($2d\to128\to2$) & no\\
@@ -20,7 +20,12 @@ Inverse dynamics & MLP($2d\to128\to2$) & no\\
 \end{center}
 
 $d=128$ unless stated otherwise. Total 1.29M parameters, of which 594.7k are in the fast set
-(LoRA, encoder head, propriojection, R-module heads).
+(the predictor's last block = R-module, the encoder head, the propriojection and the R-module
+heads). Two fast parameterisations are available and both are evaluated: \emph{direct} (the
+default, and what the AdaJEPA baseline uses) and \emph{LoRA($r{=}4$)} on the same block
+(ablation row \texttt{lora}). Adapters trained with LoRA are folded into the base weights
+before evaluation, which is numerically exact (prediction-loss difference $3\times10^{-8}$),
+so a single checkpoint serves both parameterisations.
 
 \subsection{A note on LoRA inside \texttt{nn.MultiheadAttention}}
 

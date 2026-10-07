@@ -64,8 +64,11 @@ latent space from the context,
 \yhat^{(k)} = \yhat^{(k-1)} + g_{\f}\!\big([\yhat^{(k-1)},c_t] + u_t\big),\quad k = 1,\dots,K_t,
 \label{eq:refine}
 \end{equation}
-where $g_{\f}$ is a single pre-norm transformer block with LoRA adapters, and the update is
-residual. Each depth $k$ carries its own mean head $W_\mu$ and log-variance head $W_{\log\sigma^2}$:
+where $g_{\f}$ is a single pre-norm transformer block, and the update is residual. The fast
+parameter set is not fixed by the architecture: our default folds any trained low-rank
+adapters into the base weights and adapts the last block directly (which is what our
+AdaJEPA baseline does, so the two methods differ \emph{only} in the adaptation policy);
+adapting through rank-4 LoRA instead is reported as an ablation (\S\ref{sec:results}). Each depth $k$ carries its own mean head $W_\mu$ and log-variance head $W_{\log\sigma^2}$:
 \begin{equation}
 \hat\mu^{(k)} = W_\mu \mathrm{LN}\big(g_{\f}^{(k)}\big),\qquad
 \log\hat\sigma^{2(k)} = W_{\log\sigma^2}\big(\hat\mu^{(k)}\big).
@@ -149,6 +152,18 @@ environment fingerprint $\mathrm{fp}$ (the mean latent of the episode's first fr
 episode start the nearest snapshot warm-starts $\f$. This is what turns per-episode adaptation
 into cross-episode learning: returning to a previously seen environment is no longer a
 cold start.
+
+\paragraph{Parameterisation is an experimental control, not a contribution.} Because
+AdaJEPA's own ablations show that rank-4 LoRA adapters recover less of the frozen-to-adapted
+gap than direct updates of the same block, evaluating a LoRA-based method against a
+direct-update baseline would confound the adaptation \emph{policy} with the adaptation
+\emph{parameterisation}. We therefore fold the trained adapters into the base weights
+(numerically exact: the folded and unfolded models agree to $3\times10^{-8}$ in prediction
+loss) and give both methods the identical fast set---the predictor's last block plus the
+encoder head, with the encoder trunk and the S-module frozen---so that measured differences
+are attributable to allocation, memory, safety and refinement depth alone. The LoRA
+parameterisation is then a separate row in the ablation table, and it costs accuracy there,
+which is consistent with AdaJEPA's finding.
 
 \paragraph{Slow consolidation} happens once per episode, on the episodic memory, with an EWC
 penalty: $\ts \leftarrow \ts - \eta_s\nabla_{\ts}[\mathcal L_{\mathrm{ada}}(\mathcal M_e) +

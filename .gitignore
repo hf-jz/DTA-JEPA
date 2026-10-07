@@ -13,3 +13,4 @@ latex-paper/*.log
 latex-paper/*.out
 build/
 checkpoints/pretrain_smoke*.pt
+checkpoints/tmp_*

@@ -79,6 +79,24 @@ def lora_parameters(module):
     return [p for m in module.modules() if isinstance(m, LoRALinear) for p in m.lora_parameters()]
 
 
+def fold_lora(model):
+    """Fold trained LoRA deltas into the base weights and switch to direct updates.
+
+    The folded model is numerically identical to the LoRA model at the moment of
+    folding, so a checkpoint trained with adapters can be evaluated with either fast
+    parameterisation -- which is what makes the AdaJEPA/DTA-JEPA comparison isolate the
+    adaptation *policy* instead of confounding it with the parameterisation.
+    """
+    for m in model.modules():
+        if isinstance(m, LoRALinear) and m.rank > 0:
+            with torch.no_grad():
+                m.base.weight.add_(m.scale * (m.B @ m.A))
+            m.scale = 0.0
+            for p_ in m.lora_parameters():
+                p_.requires_grad_(False)
+    return model
+
+
 def set_lora_scale(module, scale):
     for m in module.modules():
         if isinstance(m, LoRALinear):

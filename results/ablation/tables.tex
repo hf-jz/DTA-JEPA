@@ -2,13 +2,15 @@
 \centering
 \caption{Planning success (\%) by shift family, averaged over all conditions and seeds of each family.}
 \label{tab:family}
-\begin{tabular}{lcccc}
+\begin{tabular}{lcc}
 \toprule
- & Dynamics & Layout & Shape & Visual \\
+ & Dynamics & Shape \\
 \midrule
-AdaJEPA & 40.3 & 65.8 & 37.5 & 25.0 \\
-DTA-JEPA & 38.9 & 68.3 & 32.7 & 40.6 \\
-Frozen & 40.3 & 70.0 & 32.1 & 33.3 \\
+DTA-JEPA fixed K & 36.1 & 29.8 \\
+DTA-JEPA w/o memory & 38.9 & 29.8 \\
+DTA-JEPA w/o safety & 41.7 & 35.7 \\
+DTA-JEPA w/o slow & 36.1 & 29.8 \\
+DTA-JEPA w/o unc. & 36.1 & 29.8 \\
 \bottomrule
 \end{tabular}
 \end{table}
@@ -21,9 +23,12 @@ Frozen & 40.3 & 70.0 & 32.1 & 33.3 \\
 \toprule
  & seen & unseen \\
 \midrule
-adajepa & 31.2 & 45.8 \\
-dtajepa & 28.1 & 38.9 \\
-frozen & 27.1 & 38.9 \\
+dtajepa_fixedk & 22.9 & 38.9 \\
+dtajepa_lora & 29.2 & 38.9 \\
+dtajepa_nomem & 25.0 & 36.1 \\
+dtajepa_nosafe & 29.2 & 44.4 \\
+dtajepa_noslow & 22.9 & 38.9 \\
+dtajepa_nounc & 22.9 & 38.9 \\
 \bottomrule
 \end{tabular}
 \end{table}

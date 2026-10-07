@@ -1,0 +1,8 @@
+suite,label,method,success,std,n,wall
+shape,+,dtajepa,37.5,29.5,2,35.2
+shape,I,dtajepa,58.3,0.0,2,35.2
+shape,L,dtajepa,29.2,29.5,2,35.4
+shape,T,dtajepa,20.8,5.9,2,36.1
+shape,Z,dtajepa,25.0,11.8,2,34.9
+shape,smallT,dtajepa,20.8,17.7,2,33.9
+shape,square,dtajepa,33.3,11.8,2,35.8
