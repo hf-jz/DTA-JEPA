@@ -129,9 +129,11 @@ identical planner, budget and episode set.
 
 \medskip
 \noindent The empirical result is negative and we report it as such: at equal budget the three
-methods are statistically indistinguishable (combined $43.6$, $42.8$ and $44.7\%$ over 38
-conditions, per-condition spread $21$--$22$ points), and neither the uncertainty allocation nor
-the meta-learned initialisation produces a measurable gain. We also report the three
+methods are statistically indistinguishable overall (combined $42.5$, $42.9$ and $45.2\%$,
+per-condition spread $21$--$23$ points) and the meta-learned initialisation produces no
+measurable gain --- but the exception is the one the design predicts: under a reachable
+\emph{dynamics} shift (damping $\times5$) DTA-JEPA reaches the goal in $41.7\%$ of episodes
+against $33.3\%$ for AdaJEPA and $16.7\%$ for the frozen model. We also report the three
 measurements that explain why, because they constrain the design space more than the headline
 comparison does: (i) recursive refinement reduces one-step latent error by $42\%$ from depth
 one to depth three and \emph{degrades} at depth four; (ii) the predicted variance is

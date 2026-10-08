@@ -148,8 +148,12 @@ def figures(df, outdir):
                 m = sub[(sub.method == meth) & (sub.label == lab)]
                 vals.append(m.success.mean() if len(m) else np.nan)
                 errs.append(m.success.std(ddof=1) if len(m) > 1 else 0.0)
-            ax.bar(np.arange(len(order)) + i * w, vals, w, yerr=errs, capsize=2,
-                   color=colors[meth], label=names[meth])
+            xs = np.arange(len(order)) + i * w
+            ax.bar(xs, vals, w, yerr=errs, capsize=2, color=colors[meth], label=names[meth])
+            for x_, v_ in zip(xs, vals):          # a 0% bar is invisible without its label
+                if not np.isnan(v_):
+                    ax.text(x_, max(v_, 0) + 3, f"{v_:.0f}", ha="center", fontsize=6.5,
+                            color="#575c65")
         ax.set_xticks(np.arange(len(order)) + 0.4 - w / 2)
         ax.set_xticklabels(order, fontsize=8)
         ax.set_ylabel("Success (%)")

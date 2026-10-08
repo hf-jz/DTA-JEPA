@@ -154,6 +154,49 @@ def parity_html(parity, traj_figs, figs_dst):
     return "".join(out)
 
 
+
+def parity_curves_figure(outdir):
+    """One panel per shape, success vs replanning step, 3 methods (AdaJEPA Fig. 2 layout)."""
+    import matplotlib
+    matplotlib.use("Agg")
+    import matplotlib.pyplot as plt
+
+    fp = os.path.join(RES, "parity_curves.jsonl")
+    if not os.path.exists(fp):
+        return None
+    rows = [json.loads(l) for l in open(fp) if l.strip()]
+    shts = sorted({r["label"] for r in rows})
+    n = max(1, len(shts))
+    cols = 4
+    nrow = (n + cols - 1) // cols
+    fig, axes = plt.subplots(nrow, cols, figsize=(3.1 * cols, 2.5 * nrow), squeeze=False,
+                             sharex=True)
+    colr = {"frozen": "#9aa1ab", "adajepa": "#4a86c8", "dtajepa": "#c0504d"}
+    nam = {"frozen": "Frozen", "adajepa": "AdaJEPA", "dtajepa": "DTA-JEPA"}
+    for ax, sh in zip(axes.ravel(), shts):
+        for m in ("frozen", "adajepa", "dtajepa"):
+            sel = [r for r in rows if r["label"] == sh and r["method"] == m]
+            if not sel:
+                continue
+            cur = 100.0 * np.mean([r["success_curve"] for r in sel], axis=0)
+            ax.plot(np.arange(1, len(cur) + 1), cur, lw=1.7, color=colr[m], label=nam[m])
+        ax.set_title(sh, fontsize=10)
+        ax.set_ylim(0, 105)
+        ax.grid(alpha=.25)
+    for ax in axes.ravel()[n:]:
+        ax.axis("off")
+    for ax in axes.ravel()[max(0, n - cols):n]:
+        ax.set_xlabel("MPC replanning step")
+    for r_ in range(nrow):
+        axes[r_][0].set_ylabel("Success (%)")
+    axes.ravel()[0].legend(fontsize=8, loc="lower right")
+    fig.tight_layout()
+    out = os.path.join(outdir, "fig_parity_curves.png")
+    fig.savefig(out, dpi=165)
+    plt.close(fig)
+    print("figure ->", out)
+    return out
+
 def traj_figures(outdir):
     """Agent/object trajectories per MPC replan, in the style of AdaJEPA's Fig. 4/5."""
     import glob
@@ -262,6 +305,7 @@ def main():
     cp = os.path.join(RES, "calib_push.json")
     if os.path.exists(cp):
         calib = json.load(open(cp))
+    parity_curves_figure(figs_dst)
     traj_figs = traj_figures(figs_dst)
     extra = parity_html(parity, traj_figs, figs_dst)
 

@@ -109,7 +109,7 @@ LoRA step on B ∪ M<sub>ret</sub> → project + validate → replan
 <p class="sub">Frozen vs a faithful AdaJEPA re-implementation vs DTA-JEPA, identical planner,
 horizon, replay buffer, checkpoint and episode set. Success in percent, averaged over the
 conditions of each shift family.</p>
-<table><thead><tr><th></th><th>Dynamics</th><th>Layout</th><th>Shape</th><th>Visual</th></tr></thead><tbody><tr><th scope="row">AdaJEPA</th><td>40.3</td><td>65.8</td><td>37.5</td><td>25.0</td></tr><tr><th scope="row">DTA-JEPA</th><td class="hl">38.9</td><td class="hl">68.3</td><td class="hl">32.7</td><td class="hl">40.6</td></tr><tr><th scope="row">Frozen</th><td>40.3</td><td>70.0</td><td>32.1</td><td>33.3</td></tr></tbody></table>
+<table><thead><tr><th></th><th>Dynamics</th><th>Layout</th><th>Shape</th><th>Visual</th></tr></thead><tbody><tr><th scope="row">AdaJEPA</th><td>39.6</td><td>67.5</td><td>37.5</td><td>25.0</td></tr><tr><th scope="row">DTA-JEPA</th><td class="hl">40.6</td><td class="hl">70.0</td><td class="hl">32.7</td><td class="hl">40.6</td></tr><tr><th scope="row">Frozen</th><td>35.4</td><td>70.0</td><td>32.1</td><td>33.3</td></tr></tbody></table>
 
 <figure><img src="figs/fig_success_curves.png" alt="success versus replan curves">
 <figcaption>Planning success versus MPC replanning step for all four shift families

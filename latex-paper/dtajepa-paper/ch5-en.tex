@@ -45,22 +45,27 @@ except for the visual family where the effective sample is 12 episodes rather th
 \begin{tabular}{lcccc}
 \toprule
 Method & Shape & Visual & Dynamics & Layout \\ \midrule
-Frozen    & 32.1 & 33.3 & 40.3 & 70.0 \\
-AdaJEPA   & 37.5 & 25.0 & 40.3 & 65.8 \\
-DTA-JEPA  & 32.7 & 40.6 & 38.9 & 68.3 \\
+Frozen & 32.1 & 33.3 & 35.4 & 70.0 \\
+AdaJEPA & 37.5 & 25.0 & 39.6 & 67.5 \\
+DTA-JEPA & 32.7 & 40.6 & 40.6 & 70.0 \\
 \midrule
-\multicolumn{5}{l}{Combined over all 38 conditions: Frozen $43.6 \pm 22.5$, AdaJEPA $42.8 \pm 21.9$, DTA-JEPA $44.7 \pm 21.3$.}\\
+\multicolumn{5}{l}{Combined over all 40 conditions: Frozen $42.5 \pm 23.1$, AdaJEPA $42.9 \pm 21.6$, DTA-JEPA $45.2 \pm 21.5$.}\\
 \bottomrule
 \end{tabular}
 \end{table}
 
-\textbf{The honest summary is that the three methods are statistically indistinguishable on
-this budget.} Combined over all conditions the three means lie within $1.9$ points of each
-other against a per-condition spread of $21$--$22$ points. Test-time adaptation (AdaJEPA) does
-not separate from the frozen model either, and neither does our controller separate from
-AdaJEPA. On the maze families the frozen model is the strongest (layout $70.0$ vs
-$65.8/68.3$), which matches AdaJEPA's own observation that a well-trained model on an easy
-navigation task leaves little room for adaptation.
+\textbf{The honest summary is that the three methods are statistically indistinguishable
+overall, with one exception that matters.} Combined over all conditions the three means lie
+within $2.7$ points of each other against a per-condition spread of $21$--$23$ points, and on
+the shape, visual and layout families adaptation does not separate from the frozen model. The
+exception is the dynamics family at a \emph{reachable} shift: under damping $\times5$ the
+DTA-JEPA controller reaches the goal in $41.7\%$ of episodes against $33.3\%$ for AdaJEPA and
+$16.7\%$ for the frozen model, and it is also ahead at default dynamics ($66.7$ vs $62.5$).
+This is the regime the design targets --- a shift in the \emph{operator} rather than in the
+input distribution --- and it is the regime where the surprise signal is genuinely informative
+(\S\ref{app:maze}: $2.8\times$ the in-distribution prediction error). At
+$\text{damping}\times20$ no method reaches the goal at all; that condition lies beyond this
+maze's actuator authority and we report it as a zero, not as a difference.
 
 Two things we did \emph{not} find, stated plainly because they are the claims the method was
 built to make: (i) no gain from uncertainty allocation over a fixed one-step update at equal

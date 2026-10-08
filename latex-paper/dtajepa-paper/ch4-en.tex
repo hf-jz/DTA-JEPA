@@ -58,7 +58,10 @@ Everything that defines the \emph{evaluation protocol} is kept identical to AdaJ
 runs (AdaJEPA uses 25 with a 100-action budget; we keep a 2:1 executor-to-goal slack instead
 of 4:1 because our action cost is fixed, see \S\ref{sec:setup}), with trivial segments
 filtered out;
-\item MPC uses horizon $H=8$, executes a chunk of $c=5$ actions, at most $R=6$ replans,
+\item MPC uses horizon $H=8$, executes a chunk of $c=5$ actions, at most $R=6$ replans on the
+PushBlock families and $R=15$ on the PointMaze families (the maze episodes are two orders of
+magnitude cheaper to roll out, and at $R=6$ the $\text{damping}\times20$ condition is
+unreachable for every method, which makes it uninformative rather than hard),
 and warm-starts the remaining action sequence from the previous plan;
 \item the gradient-descent planner optimises the action sequence with Adam at learning rate
 $0.1$, initialised at zero;

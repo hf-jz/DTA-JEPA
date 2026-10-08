@@ -389,9 +389,9 @@ def suite_specs(suite, ckpt_push="push4", ckpt_maze="maze25", goal_gap=D.GOAL_GA
                               corrupt_level=lvl, colors=colors, goal_gap=goal_gap))
     if suite in ("dyn", "all"):
         for label, ms, ds in (("default", 1.0, 1.0), ("lowMass", 0.2, 1.0),
-                              ("highDamping", 1.0, 20.0)):
+                              ("highDamping5", 1.0, 5.0), ("highDamping", 1.0, 20.0)):
             fname = {"default": "default", "lowMass": "lowmass",
-                     "highDamping": "highdamp"}[label]
+                     "highDamping5": "highdamp5", "highDamping": "highdamp"}[label]
             specs.append(dict(suite="dyn", label=label, ckpt=ckpt_maze, kind="maze",
                               eval_file=f"maze_dyneval_{fname}", mass_scale=ms,
                               damping_scale=ds, layout="train0"))
