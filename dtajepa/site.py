@@ -8,6 +8,8 @@ import json
 import os
 import shutil
 
+import numpy as np
+
 import pandas as pd
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -165,7 +167,8 @@ def traj_figures(outdir):
         files = sorted(glob.glob(os.path.join(RES, "traj", f"{kind}_*_*.npz")))
         if not files:
             continue
-        labels = [os.path.basename(f).replace(f"{kind}_", "").rsplit("_", 1) for f in files]
+        labels = [os.path.splitext(os.path.basename(f))[0].replace(f"{kind}_", "").rsplit("_", 1)
+                  for f in files]
         conds = sorted({a for a, _ in labels})
         methods = [m for m in ("frozen", "adajepa", "dtajepa") if any(b == m for _, b in labels)]
         fig, axes = plt.subplots(1, min(4, len(conds)), figsize=(3.3 * min(4, len(conds)), 3.4),
@@ -283,21 +286,24 @@ def main():
 <title>DTA-JEPA · Dual-Timescale Recursive Adaptive Latent World Models</title>
 <meta name="description" content="Uncertainty-allocated test-time adaptation for latent world models, with persistent memory and a safety layer.">
 <style>
-:root{{--bg:#0f1114;--panel:#16191d;--panel2:#16191d;--ink:#eceef1;--muted:#9aa1ab;
---line:#282d34;--accent:#8fb4e3;--accent-ink:#0f1114;--soft:#17212c;
---shadow:0 18px 40px rgba(0,0,0,.5);
+:root{{--bg:#f4f4f2;--panel:#fdfdfc;--panel2:#fdfdfc;--ink:#15171b;--muted:#575c65;
+--line:#dcdcd6;--accent:#1d4e89;--accent-ink:#f4f4f2;--soft:#e9eef4;
+--shadow:0 18px 40px rgba(21,23,27,.08);
 --sans:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif;
 --serif:"Iowan Old Style",Palatino,"Palatino Linotype",Georgia,serif;
 --mono:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
 /* aliases used by the rest of this sheet */
 --fg:var(--ink);--dim:var(--muted);--acc:var(--accent);--acc2:var(--accent);--ok:var(--accent);}}
+@media (prefers-color-scheme: dark){{:root{{--bg:#0f1114;--panel:#16191d;--panel2:#16191d;
+--ink:#eceef1;--muted:#9aa1ab;--line:#282d34;--accent:#8fb4e3;--accent-ink:#0f1114;
+--soft:#17212c;--shadow:0 18px 40px rgba(0,0,0,.5);}}}}
 *{{box-sizing:border-box}}
 body{{margin:0;background:var(--bg);color:var(--ink);font-family:var(--sans);
 font-size:16.5px;line-height:1.62;-webkit-font-smoothing:antialiased}}
 a{{color:var(--accent);text-decoration:none;border-bottom:1px solid rgba(143,180,227,.35)}}
 a:hover{{color:var(--ink);border-bottom-color:var(--accent)}}
 header{{padding:56px 24px 32px;border-bottom:1px solid var(--line);
-background:radial-gradient(900px 320px at 18% -12%,#17212c 0%,var(--bg) 72%)}}
+background:radial-gradient(900px 320px at 18% -12%,var(--soft) 0%,var(--bg) 72%)}}
 .wrap{{max-width:1120px;margin:0 auto}}
 h1{{font-family:var(--serif);font-size:33px;line-height:1.22;margin:0 0 8px;letter-spacing:-.01em}}
 h2{{font-family:var(--serif);font-size:22px;font-weight:600;margin:44px 0 12px;
@@ -316,7 +322,7 @@ th,td{{padding:9px 12px;text-align:center;border-bottom:1px solid var(--line)}}
 thead th{{background:var(--soft);color:var(--ink);font-weight:600;font-size:13px;
 letter-spacing:.02em;text-transform:uppercase}}
 tbody th{{text-align:left;color:var(--ink);font-weight:500}}
-td.hl,tbody th.hl{{color:var(--accent);background:var(--soft);font-weight:600}}
+td.hl,tbody th.hl{{color:var(--accent);background:var(--soft);font-weight:700}}
 figure{{margin:22px 0}} img{{width:100%;border-radius:10px;border:1px solid var(--line);
 background:#fff;box-shadow:var(--shadow)}}
 figcaption{{color:var(--muted);font-size:13px;margin-top:8px}}
@@ -390,7 +396,7 @@ conditions of each shift family.</p>
 (seen/unseen shapes, corruptions, colour shifts, dynamics shifts, unseen mazes).</figcaption></figure>
 
 <figure><img src="figs/fig_bars.png" alt="per-condition bars">
-<figcaption>Final success per condition, mean ± s.d. over seeds.</figcaption></figure>
+<figcaption>Final success per condition, mean ± s.d. over seeds. Empty categories are genuine zeros: no method reached the goal in the <code>highDamping</code> (damping &times;20) maze within the replanning budget.</figcaption></figure>
 
 <h3>Seen versus unseen geometries</h3>
 {seen_tbl if seen_tbl else ''}
