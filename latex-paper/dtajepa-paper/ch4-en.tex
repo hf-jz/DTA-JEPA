@@ -1,5 +1,46 @@
 \section{Experimental Setup}\label{sec:setup}
 
+\subsection{Why we replicate the protocol instead of running their code}\label{sec:why}
+
+Running AdaJEPA's own evaluation on AdaJEPA's own examples was attempted first, and is not
+possible in this environment. Their released checkpoints and evaluation pickles are hosted on
+Google Drive, which is unreachable from this machine, and the DINOv2 feature extractor their
+configurations load is blocked as well; their repository additionally requires
+\texttt{torchvision}, \texttt{einops}, \texttt{hydra}, \texttt{omegaconf} and MuJoCo, none of
+which are installed. Table~\ref{tab:probe} records the probe. Without the trained world models
+\emph{and} the held-out evaluation trajectories, neither their Frozen nor their AdaJEPA column
+can be reproduced, so no number in this paper is claimed to be comparable with theirs in
+absolute terms.
+
+What we can do, and do, is put our implementation on their \emph{examples and yardstick}: the
+same shift families and shift generators (\S\ref{sec:setup}), the same construction of
+evaluation episodes (goals are future frames of the same held-out trajectory, with trivial
+segments filtered out), the same success semantics (pose tolerance in the environment, reported
+per replanning step and at the end of the episode), the same adaptation protocol (one update per
+replan on a recent-5 buffer with learning rates $5\times10^{-4}$/$10^{-5}$), and the same
+qualitative figures (planning trajectories per method, and the test-time learning-rate, step-count
+and replay-buffer sweeps of their Fig.~9). Table~\ref{tab:yardstick} lists, for every figure and
+table in their paper, what was reproduced here and what was not.
+
+\begin{table}[t]
+\centering
+\caption{Probe of the AdaJEPA repository on this machine (macOS/arm64, Python 3.9, torch 2.8).}
+\label{tab:probe}
+\begin{tabular}{lll}
+\toprule
+Requirement & Status & Consequence \\
+\midrule
+\texttt{data/}, \texttt{checkpoints/} & absent in the checkout & no expert trajectories, no trained models \\
+\texttt{drive.google.com} & unreachable (connect error) & released checkpoints + eval pickles unobtainable \\
+\texttt{dl.fbaipublicfiles.com} & HTTP 403 & DINOv2 backbone unobtainable \\
+\texttt{hf-mirror.com} & HTTP 200 & (the HF mirror is the only working model host) \\
+\texttt{torchvision}, \texttt{einops} & not installed & \texttt{plan.py} cannot import \\
+\texttt{hydra}, \texttt{omegaconf} & not installed & configuration system unavailable \\
+\texttt{mujoco}, \texttt{pymunk} & not installed & maze and push environments unavailable \\
+\bottomrule
+\end{tabular}
+\end{table}
+
 \subsection{Design principle: replicate the protocol, not the pixels}
 
 The AdaJEPA benchmark requires the DINO-WM/PushT expert datasets, released JEPA checkpoints
@@ -83,6 +124,33 @@ rollback, no support penalty), \texttt{fixedk} (fixed refinement depth), \texttt
 
 Ablations use the same world model, planner, episode set and budget as the full method, so
 each row isolates one mechanism.
+
+\subsection{Reproduction matrix}\label{sec:matrix}
+
+\begin{table}[t]
+\centering
+\caption{Every artifact of the AdaJEPA paper, with its status under this re-implementation.
+Runs marked "reproduced" use the identical shift generator, episode construction and success
+criterion; what differs is the simulator (ours), the encoder (trained from scratch rather than
+DINOv2) and the planner budget.}
+\label{tab:yardstick}
+\small
+\begin{tabular}{p{5.4cm}p{2.6cm}p{6.2cm}}
+\toprule
+AdaJEPA artifact & Yardstick & Status here \\
+\midrule
+Fig.~2 top: 7 shapes, curves to 30 steps & success vs step & reproduced (GD, 30 steps, 6 episodes/condition); CEM spot check \\
+Fig.~2 bottom: visual shifts & success vs step & reproduced, but degenerate --- all eight conditions coincide (no-op finding, \S\ref{sec:noop}) \\
+Table~1: dynamics + layout shifts & success & reproduced for GD; CEM not run on the maze families \\
+Fig.~4/5: planning trajectories & qualitative & reproduced (agent and object paths, goal marked) \\
+Fig.~8: which parameters to adapt & env-average success & partly: fast set (direct vs LoRA), memory, safety, depth, slow consolidation, meta-init; not their \texttt{predfirst} / \texttt{encfrozen} taps \\
+Fig.~9: lr / steps / replay buffer & success vs knob & reproduced on the same three axes \\
+Fig.~6: data scale ($K$ shapes, $N$ traj.) & success vs data & not run: requires 4--8 further pretrainings ($\sim$30 min each) \\
+Fig.~7: decoded imagination & qualitative & not run: requires a decoder trained on the latent space \\
+Table~2: across JEPA implementations & success & not run: requires DINOv2 weights and their checkpoints \\
+\bottomrule
+\end{tabular}
+\end{table}
 
 \subsection{Metrics}
 

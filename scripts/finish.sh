@@ -6,6 +6,10 @@ PY=/usr/bin/python3
 D=latex-paper/dtajepa-paper
 
 $PY -m dtajepa.report --in results/raw.jsonl --out results
+for extra in parity_curves parity_sweep parity_cem; do
+  [ -f results/$extra.jsonl ] && $PY -m dtajepa.report --in results/$extra.jsonl --out results/parity
+done
+[ -f results/parity/figs/fig_success_curves.png ] && mkdir -p results/figs && cp -f results/parity/figs/fig_success_curves.png results/figs/fig_parity_curves.png
 $PY -m dtajepa.site
 
 mkdir -p "$D/figs"

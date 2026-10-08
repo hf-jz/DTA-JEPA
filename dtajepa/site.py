@@ -37,6 +37,176 @@ def table_html(df, index_name="", highlight="DTA-JEPA"):
     return (f'<table><thead><tr>{head}</tr></thead><tbody>{"".join(rows)}</tbody></table>')
 
 
+
+def parity_html(parity, traj_figs):
+    """Verification inventory + the parity runs, rendered from raw JSONL."""
+    P = {"frozen": "Frozen", "adajepa": "AdaJEPA", "dtajepa": "DTA-JEPA"}
+    out = []
+    inv = [
+        ("Fig. 2 top --- 7 shapes, curves to 30 MPC steps", "success vs step",
+         "reproduced (GD, 30 steps, 6 episodes/condition); CEM spot-check below"),
+        ("Fig. 2 bottom --- visual shifts (blur/snp/dark/red&nbsp;&times;3)", "success vs step",
+         "reproduced, but degenerate: all eight conditions coincide, see the no-op finding"),
+        ("Table 1 --- PointMaze dynamics + layout shifts", "success",
+         "reproduced for GD (main sweep); CEM not run on the maze"),
+        ("Fig. 4/5 --- planning trajectories", "qualitative",
+         "reproduced below (agent and object paths per replan, goal marked)"),
+        ("Fig. 8 --- which parameters to adapt", "env-average success",
+         "partly: we ablate the fast set (direct vs LoRA), memory, safety, refinement depth, "
+         "slow consolidation and meta-init; not their predfirst / encfrozen taps"),
+        ("Fig. 9 --- test-time lr, steps, replay buffer", "success vs knob",
+         "reproduced below on the same axes"),
+        ("Fig. 6 --- data scale (shapes K &times; trajectories N)", "success vs data",
+         "not run: needs 4--8 additional pretrainings (~30 min each on this machine)"),
+        ("Fig. 7 --- decoded imagination", "qualitative",
+         "not run: needs a decoder trained on the latent space"),
+        ("Table 2 --- across JEPA implementations", "success",
+         "not run: requires DINOv2 weights and their released checkpoints"),
+        ("their released checkpoints / eval pickles", "---",
+         "unobtainable here: <code>drive.google.com</code> unreachable, "
+         "<code>dl.fbaipublicfiles.com</code> 403, and <code>torchvision / einops / hydra / "
+         "mujoco</code> are not installed"),
+    ]
+    rows = "".join(f"<tr><th scope=\"row\">{a}</th><td>{b}</td><td>{c}</td></tr>"
+                   for a, b, c in inv)
+    out.append("<h2>Verification against the paper's examples</h2>"
+               "<p class=\"sub\">Every figure and table of AdaJEPA, with what we were able to "
+               "put on the same yardstick. Running their code on their examples was not possible "
+               "in this environment: the probe below is the evidence, not an excuse.</p>"
+               "<table><thead><tr><th>AdaJEPA artifact</th><th>Yardstick</th>"
+               f"<th>Status here</th></tr></thead><tbody>{rows}</tbody></table>")
+
+    if "curves" in parity:
+        rows_ = parity["curves"]
+        conds = sorted({r["label"] for r in rows_})
+        meths = ["frozen", "adajepa", "dtajepa"]
+        hdr = "".join(f"<th>{P[m]}</th>" for m in meths)
+        body = ""
+        for c in conds:
+            tds = ""
+            for m in meths:
+                r = [x for x in rows_ if x["label"] == c and x["method"] == m]
+                tds += f"<td>{r[0]['success']:.0f}</td>" if r else "<td>--</td>"
+            body += f"<tr><th scope=\"row\">{c}</th>{tds}</tr>"
+        out.append("<h3>Success at 30 MPC steps &mdash; their Fig. 2 x-axis</h3>"
+                   "<p class=\"sub\">Final success after 30 replanning steps (6 episodes per "
+                   "condition, GD planner, our affordable planner budget).</p>"
+                   f"<table><thead><tr><th>Shape</th>{hdr}</tr></thead><tbody>{body}</tbody></table>")
+        if os.path.exists(os.path.join(figs_dst, "fig_parity_curves.png")):
+            out.append("<figure><img src=\"figs/fig_parity_curves.png\" alt=\"30-step curves\">"
+                       "<figcaption>Success versus MPC replanning step over 30 steps, averaged "
+                       "over the 7 shapes (their Fig. 2 top x-axis).</figcaption></figure>")
+        if traj_figs:
+            out.append("<h3>Planning trajectories &mdash; their Fig. 4/5</h3>"
+                       "<p class=\"sub\">Agent path per replanning step under each method "
+                       "(dotted = episode failed, solid = reached the goal); gold star = goal, "
+                       "thin lines = manipulated object. Shift family in each panel title.</p>")
+            for f in traj_figs:
+                nm = os.path.basename(f)
+                out.append(f'<figure><img src="figs/{nm}" alt="{nm}"></figure>')
+
+    if "sweep" in parity:
+        rows_ = parity["sweep"]
+        keys = sorted({(r.get("adapt", {}).get("lr"), r.get("adapt", {}).get("steps"),
+                        r.get("adapt", {}).get("buffer")) for r in rows_},
+                      key=lambda t: (t[0] or 0, t[1] or 0, t[2] or 0))
+        meths = ["adajepa", "dtajepa"]
+        body = ""
+        for lr, st, bf in keys:
+            if None in (lr, st, bf):
+                continue
+            tds = ""
+            for m in meths:
+                sel = [r for r in rows_ if r.get("adapt", {}).get("lr") == lr
+                       and r.get("adapt", {}).get("steps") == st
+                       and r.get("adapt", {}).get("buffer") == bf and r["method"] == m]
+                if sel:
+                    m_ = sum(x["success"] for x in sel) / len(sel)
+                    tds += f"<td>{m_:.0f}</td>"
+                else:
+                    tds += "<td>--</td>"
+            body += (f"<tr><th scope=\"row\">lr {lr/5e-4:.1f}&times;, {st} step"
+                     f"{'s' if st != 1 else ''}, buffer {bf}</th>{tds}</tr>")
+        out.append("<h3>Test-time adaptation hyper-parameters &mdash; their Fig. 9 axes</h3>"
+                   "<p class=\"sub\">Success (%) on the shape suite, averaged over the "
+                   "conditions of that configuration (6 episodes each).</p>"
+                   "<table><thead><tr><th>Configuration</th><th>AdaJEPA</th><th>DTA-JEPA</th>"
+                   f"</tr></thead><tbody>{body}</tbody></table>")
+
+    if "cem" in parity:
+        rows_ = parity["cem"]
+        conds = sorted({r["label"] for r in rows_})
+        meths = ["frozen", "adajepa", "dtajepa"]
+        hdr = "".join(f"<th>{P[m]}</th>" for m in meths)
+        body = ""
+        for c in conds:
+            tds = "".join(
+                (lambda r: f"<td>{r[0]['success']:.0f}</td>" if r else "<td>--</td>")(
+                    [x for x in rows_ if x["label"] == c and x["method"] == m]) for m in meths)
+            body += f"<tr><th scope=\"row\">{c}</th>{tds}</tr>"
+        out.append("<h3>CEM planner &mdash; they report GD and CEM for every family</h3>"
+                   "<p class=\"sub\">Cross-entropy-method spot check (64 samples, 5 iterations, "
+                   "4 episodes, 4 replans): the ordering between methods should not depend on the "
+                   "planner.</p>"
+                   f"<table><thead><tr><th>Shape</th>{hdr}</tr></thead><tbody>{body}</tbody></table>")
+    return "".join(out)
+
+
+def traj_figures(outdir):
+    """Agent/object trajectories per MPC replan, in the style of AdaJEPA's Fig. 4/5."""
+    import glob
+    import matplotlib
+    matplotlib.use("Agg")
+    import matplotlib.pyplot as plt
+
+    os.makedirs(outdir, exist_ok=True)
+    made = []
+    for kind, tag in (("shape", "push"), ("dyn", "maze"), ("layout", "maze-layouts")):
+        files = sorted(glob.glob(os.path.join(RES, "traj", f"{kind}_*_*.npz")))
+        if not files:
+            continue
+        labels = [os.path.basename(f).replace(f"{kind}_", "").rsplit("_", 1) for f in files]
+        conds = sorted({a for a, _ in labels})
+        methods = [m for m in ("frozen", "adajepa", "dtajepa") if any(b == m for _, b in labels)]
+        fig, axes = plt.subplots(1, min(4, len(conds)), figsize=(3.3 * min(4, len(conds)), 3.4),
+                                 squeeze=False)
+        for ax, cond in zip(axes.ravel(), conds[:4]):
+            for meth, col in zip(methods, ("#9aa1ab", "#8fb4e3", "#d64541")):
+                f = os.path.join(RES, "traj", f"{kind}_{cond}_{meth}.npz")
+                if not os.path.exists(f):
+                    continue
+                d = np.load(f)
+                keys = [k for k in d.files if k.startswith("ep")]
+                ok = d["success"]
+                for i, k in enumerate(keys[:4]):
+                    tr = d[k]
+                    sty = dict(color=col, lw=1.6, alpha=.9 if ok[i] else .45,
+                               ls="-" if ok[i] else ":")
+                    ax.plot(tr[:, 0], tr[:, 1], **sty)
+                    if kind == "shape":                      # block path
+                        ax.plot(tr[:, 2], tr[:, 3], color=col, lw=1.0, alpha=.35)
+                    ax.plot(tr[0, 0], tr[0, 1], marker="o", ms=4, color=col)
+                    g = d["goals"][i]
+                    ax.plot(g[0] if kind == "shape" else g[0], g[1] if kind == "shape" else g[1],
+                            marker="*", ms=11, color="#d8b24a", markeredgecolor="#0f1114")
+            ax.set_title(f"{tag}: {cond}", fontsize=10)
+            ax.set_xlim(-1.05, 1.05); ax.set_ylim(-1.05, 1.05)
+            ax.set_aspect("equal"); ax.grid(alpha=.18)
+            handles = [plt.Line2D([], [], color=c, lw=2, label={"frozen": "Frozen",
+                                                                "adajepa": "AdaJEPA",
+                                                                "dtajepa": "DTA-JEPA"}[m])
+                       for m, c in zip(methods, ("#9aa1ab", "#8fb4e3", "#d64541"))]
+            handles.append(plt.Line2D([], [], color="#d8b24a", marker="*", ls="", ms=10,
+                                      label="goal"))
+            ax.legend(handles=handles, fontsize=7)
+        fig.tight_layout()
+        out = os.path.join(outdir, f"fig_traj_{tag.replace('-', '_')}.png")
+        fig.savefig(out, dpi=170); plt.close(fig)
+        made.append(out)
+        print("figure ->", out)
+    return made
+
+
 def main():
     os.makedirs(DOCS, exist_ok=True)
     figs_src = os.path.join(RES, "figs")
@@ -77,9 +247,20 @@ def main():
             ab["method"] = ab["method"].map(lambda m: PRETTY.get(m, m))
             q = ab.pivot_table(index="method", columns="suite", values="success", aggfunc="mean")
             abl_tbl = table_html(q)
+    parity = {}
+    for tag, fn in (("curves", "parity_curves.jsonl"), ("sweep", "parity_sweep.jsonl"),
+                    ("cem", "parity_cem.jsonl")):
+        fp2 = os.path.join(RES, fn)
+        if os.path.exists(fp2):
+            rows = [json.loads(l) for l in open(fp2) if l.strip()]
+            for r in rows:
+                r["success"] *= 100
+            parity[tag] = rows
     cp = os.path.join(RES, "calib_push.json")
     if os.path.exists(cp):
         calib = json.load(open(cp))
+    traj_figs = traj_figures(figs_dst)
+    extra = parity_html(parity, traj_figs)
 
     def fmt_cal(tag, label):
         d = calib.get(tag)
@@ -102,41 +283,52 @@ def main():
 <title>DTA-JEPA · Dual-Timescale Recursive Adaptive Latent World Models</title>
 <meta name="description" content="Uncertainty-allocated test-time adaptation for latent world models, with persistent memory and a safety layer.">
 <style>
-:root{{--bg:#0d1117;--panel:#151b23;--panel2:#1b222c;--fg:#e6edf3;--dim:#9aa7b4;
---acc:#d64541;--acc2:#4c8fd6;--ok:#2e9e5b;--line:#252d38;}}
+:root{{--bg:#0f1114;--panel:#16191d;--panel2:#16191d;--ink:#eceef1;--muted:#9aa1ab;
+--line:#282d34;--accent:#8fb4e3;--accent-ink:#0f1114;--soft:#17212c;
+--shadow:0 18px 40px rgba(0,0,0,.5);
+--sans:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif;
+--serif:"Iowan Old Style",Palatino,"Palatino Linotype",Georgia,serif;
+--mono:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+/* aliases used by the rest of this sheet */
+--fg:var(--ink);--dim:var(--muted);--acc:var(--accent);--acc2:var(--accent);--ok:var(--accent);}}
 *{{box-sizing:border-box}}
-body{{margin:0;background:var(--bg);color:var(--fg);
-font:16px/1.6 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"Helvetica Neue",Arial,"PingFang SC",sans-serif}}
-a{{color:var(--acc2);text-decoration:none}} a:hover{{text-decoration:underline}}
+body{{margin:0;background:var(--bg);color:var(--ink);font-family:var(--sans);
+font-size:16.5px;line-height:1.62;-webkit-font-smoothing:antialiased}}
+a{{color:var(--accent);text-decoration:none;border-bottom:1px solid rgba(143,180,227,.35)}}
+a:hover{{color:var(--ink);border-bottom-color:var(--accent)}}
 header{{padding:56px 24px 32px;border-bottom:1px solid var(--line);
-background:radial-gradient(1200px 400px at 20% -10%,#1d2735 0%,var(--bg) 70%)}}
+background:radial-gradient(900px 320px at 18% -12%,#17212c 0%,var(--bg) 72%)}}
 .wrap{{max-width:1120px;margin:0 auto}}
-h1{{font-size:34px;line-height:1.25;margin:0 0 8px}}
-h2{{font-size:22px;margin:44px 0 12px;padding-bottom:8px;border-bottom:1px solid var(--line)}}
-h3{{font-size:17px;margin:24px 0 8px;color:#c9d5e1}}
+h1{{font-family:var(--serif);font-size:33px;line-height:1.22;margin:0 0 8px;letter-spacing:-.01em}}
+h2{{font-family:var(--serif);font-size:22px;font-weight:600;margin:44px 0 12px;
+padding-bottom:8px;border-bottom:1px solid var(--line)}}
+h3{{font-size:16.5px;margin:26px 0 8px;color:var(--accent)}}
 .sub{{color:var(--dim);font-size:15px;margin:0 0 18px}}
 .links a{{display:inline-block;margin:0 10px 10px 0;padding:8px 14px;border:1px solid var(--line);
-border-radius:8px;background:var(--panel);font-size:14px}}
+border-radius:8px;background:var(--panel);font-size:13.5px;box-shadow:var(--shadow)}}
 .tldr{{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:14px;margin:18px 0}}
 .card{{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:16px}}
-.card h4{{margin:0 0 6px;font-size:15px;color:#fff}}
+.card h4{{margin:0 0 6px;font-size:14.5px;color:var(--accent);letter-spacing:.01em}}
 .card p{{margin:0;font-size:14px;color:var(--dim)}}
 table{{width:100%;border-collapse:collapse;margin:14px 0;font-size:14px;background:var(--panel);
 border:1px solid var(--line);border-radius:8px;overflow:hidden}}
 th,td{{padding:9px 12px;text-align:center;border-bottom:1px solid var(--line)}}
-thead th{{background:var(--panel2);color:#c9d5e1;font-weight:600}}
-tbody th{{text-align:left;color:#c9d5e1;font-weight:500}}
-td.hl,tbody th.hl{{color:#fff;background:#2a1c1c}}
-figure{{margin:22px 0}} img{{width:100%;border-radius:10px;border:1px solid var(--line);background:#fff}}
-figcaption{{color:var(--dim);font-size:13px;margin-top:8px}}
+thead th{{background:var(--soft);color:var(--ink);font-weight:600;font-size:13px;
+letter-spacing:.02em;text-transform:uppercase}}
+tbody th{{text-align:left;color:var(--ink);font-weight:500}}
+td.hl,tbody th.hl{{color:var(--accent);background:var(--soft);font-weight:600}}
+figure{{margin:22px 0}} img{{width:100%;border-radius:10px;border:1px solid var(--line);
+background:#fff;box-shadow:var(--shadow)}}
+figcaption{{color:var(--muted);font-size:13px;margin-top:8px}}
 pre{{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:14px;
-overflow:auto;font-size:13px}}
-code{{font-family:ui-monospace,SFMono-Regular,Menlo,monospace}}
+overflow:auto;font-size:12.5px;font-family:var(--mono);color:var(--muted)}}
+code{{font-family:var(--mono);font-size:.92em;color:var(--accent)}}
 .eq{{background:var(--panel);border-left:3px solid var(--acc);border-radius:0 8px 8px 0;
 padding:12px 16px;margin:14px 0;font-family:ui-monospace,Menlo,monospace;font-size:14px;overflow:auto}}
 .grid2{{display:grid;grid-template-columns:1fr 1fr;gap:18px}}
 @media(max-width:820px){{.grid2{{grid-template-columns:1fr}}}}
-footer{{margin-top:48px;padding:28px 24px;border-top:1px solid var(--line);color:var(--dim);font-size:14px}}
+footer{{margin-top:48px;padding:28px 24px;border-top:1px solid var(--line);
+background:var(--soft);color:var(--muted);font-size:13.5px}}
 </style>
 </head>
 <body>
@@ -214,6 +406,8 @@ conditions of each shift family.</p>
 {fmt_cal("visual_blur", "blurred observations")}
 </tbody></table>
 {f'<p class="sub">Mean squared latent error per refinement depth (depth 1 → 4): {depth_row}</p>' if depth_row else ''}
+
+{extra}
 
 <h2>Protocol replication</h2>
 <p>Shift families, segment-based goal sampling (goals are future frames of the same held-out

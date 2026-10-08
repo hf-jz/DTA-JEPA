@@ -274,6 +274,7 @@ def run_condition(cond, method, n_ep, seed, cfg, verbose=False, keep_models=Fals
     adapters = [r.make_adapter(m, k) for m in models]
     done_flags = [False] * len(eps)
     success_curve = np.zeros(cfg.max_replans)
+    traj = [[] for _ in eps] if cfg.record_traj else None
     for rep in range(cfg.max_replans):
         for i, ep in enumerate(eps):
             m, ad = models[i], adapters[i]
@@ -309,6 +310,10 @@ def run_condition(cond, method, n_ep, seed, cfg, verbose=False, keep_models=Fals
                                zn=z_n[j].numpy() if use_mem else None)
                 ad.update()
                 r.timing["adapt"] += time.time() - t0
+            if traj is not None:
+                st = ep.env.sim.s
+                traj[i].append(st[[0, 1, 4, 5, 6]].copy() if ep.kind == "push"
+                               else st[:4].copy())
             if ep.done:
                 done_flags[i] = True
         n_done = int(sum(done_flags))
@@ -336,11 +341,23 @@ def run_condition(cond, method, n_ep, seed, cfg, verbose=False, keep_models=Fals
         if len(adapters) and adapters[0].safety is not None:
             stats["anchor_proj_total"] = float(sum(ad.safety.events["anchor_proj"]
                                                    for ad in adapters if ad.safety))
+    if traj is not None:
+        import numpy as _np
+        d = os.path.join(ROOT, "results", "traj")
+        os.makedirs(d, exist_ok=True)
+        _np.savez_compressed(os.path.join(d, f"{cond['suite']}_{cond['label']}_{method}.npz"),
+                             **{"ep%02d" % i: _np.asarray(t, dtype=_np.float32)
+                                for i, t in enumerate(traj)},
+                             goals=_np.asarray([e.goal_state for e in eps], dtype=_np.float32),
+                             success=_np.asarray([e.done for e in eps]),
+                             curve=_np.asarray(success_curve))
     res = dict(suite=cond["suite"], label=cond["label"], method=method, ckpt=cond["ckpt"], n_ep=len(eps),
                n_requested=n_ep, seed=seed, success=float(success_curve[-1]),
                success_curve=[float(x) for x in success_curve],
                steps_mean=float(np.mean([e.steps for e in eps])),
                first_success_mean=float(np.mean([e.first_success or 0 for e in eps])),
+               adapt=dict(lr=METHODS[method].get("lr"), steps=METHODS[method].get("steps"),
+                          buffer=METHODS[method].get("buffer")),
                timing=r.timing, adapt_stats=stats, planner=cfg.planner, horizon=cfg.horizon,
                opt_steps=cfg.opt_steps, max_replans=cfg.max_replans, chunk=cfg.chunk,
                goal_gap=cond.get("goal_gap"), wall=time.time() - t_start)
@@ -418,16 +435,37 @@ def main():
     ap.add_argument("--ckpt_maze", default="maze25")
     ap.add_argument("--goal_gap", type=int, default=D.GOAL_GAP)
     ap.add_argument("--threads", type=int, default=8)
+    ap.add_argument("--record_traj", action="store_true")
+    ap.add_argument("--adapt_lr_scale", type=float, default=None)
+    ap.add_argument("--adapt_steps", type=int, default=None)
+    ap.add_argument("--adapt_buffer", type=int, default=None)
+    ap.add_argument("--adapt_buffer_mode", default=None)
+    ap.add_argument("--cem_samples", type=int, default=200)
+    ap.add_argument("--cem_iter", type=int, default=10)
+    ap.add_argument("--cem_elite", type=int, default=20)
     ap.add_argument("--out", default="results/raw.jsonl")
     ap.add_argument("--verbose", action="store_true")
     a = ap.parse_args()
     torch.set_num_threads(a.threads)
     torch.set_grad_enabled(True)
 
+    for m in a.methods:                       # AdaJEPA Fig. 9-style overrides
+        if m in METHODS:
+            if a.adapt_lr_scale is not None:
+                METHODS[m]["lr"] = 5e-4 * a.adapt_lr_scale
+            if a.adapt_steps is not None:
+                METHODS[m]["steps"] = a.adapt_steps
+            if a.adapt_buffer is not None:
+                METHODS[m]["buffer"] = a.adapt_buffer
+            if a.adapt_buffer_mode is not None:
+                METHODS[m]["buffer_mode"] = a.adapt_buffer_mode
+            if a.adapt_buffer == 0:
+                METHODS[m]["buffer"] = 1        # a 1-transition buffer is AdaJEPA's "none"
     specs = attach_builders(suite_specs(a.suite, a.ckpt_push, a.ckpt_maze, a.goal_gap))
     cfg = MPCConfig(planner=a.planner, horizon=a.horizon, chunk=a.chunk,
-                    max_replans=a.max_replans, opt_steps=a.opt_steps, gd_lr=0.1)
-    cfg.anchor_eps, cfg.val_tol = 0.8, 0.05
+                    max_replans=a.max_replans, opt_steps=a.opt_steps, gd_lr=0.1,
+                    cem_samples=a.cem_samples, cem_iter=a.cem_iter, cem_elite=a.cem_elite)
+    cfg.anchor_eps, cfg.val_tol, cfg.record_traj = 0.8, 0.05, a.record_traj
     out = os.path.join(ROOT, a.out)
     os.makedirs(os.path.dirname(out), exist_ok=True)
     for seed in a.seeds:
