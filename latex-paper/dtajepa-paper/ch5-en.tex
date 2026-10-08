@@ -179,6 +179,54 @@ is systematically compressed, so surprise divided by its running mean stays abov
 regime the controller is not selecting cheap in-distribution updates; it is applying a
 uniformly stronger update, which is the failure mode the design was meant to avoid.
 
+\subsection{Parity runs: the paper's own example set, 30 steps out}\label{sec:parity}
+
+To make the comparison observable where AdaJEPA's figures are readable, we re-ran the shape
+suite with their 30-step x-axis, their three adaptation knobs, and their second planner.
+
+\textbf{Thirty replanning steps.} Mean final success over the seven shapes (6 episodes per
+condition, GD planner): Frozen $31.0$, AdaJEPA $43.0$, DTA-JEPA $33.4$. This reproduces the
+\emph{direction} of AdaJEPA's headline result --- test-time adaptation does help over a frozen
+model when the executor is given a longer budget --- and it also reproduces the ordering of our
+main sweep, with our controller behind their fixed one-step update. The per-shape table is on
+the project page; with 6 episodes per condition the granularity is $16.7$ points, so only the
+aggregate is worth reading.
+
+\textbf{The knobs barely move either method (their Fig.~9).} Sweeping the test-time learning
+rate ($0.2$--$5\times$), the number of adaptation steps ($1,2,5$) and the replay buffer
+($1,5,20$) over the same suite gives AdaJEPA $31.0$--$38.1\%$ and DTA-JEPA $33.3$--$42.9\%$
+--- a 7--9-point spread against a $\pm 7.5$-point sampling error, with no monotone trend in any
+knob. This agrees with AdaJEPA's own conclusion that a single step at the training learning
+rate is a strong default, and it is why we did not tune our method into a win: at this budget
+the adaptation hyper-parameters are not the binding constraint. (DTA-JEPA's only high point,
+$42.9\%$, is at the $5\times$ learning rate --- i.e.\ at the point where the anchor projection
+in \S\ref{sec:calibres} stops being able to pull the update back.)
+
+\textbf{Planner independence.} CEM (64 candidates, 5 iterations, 4 episodes, 4 replans)
+reproduces the same non-separation: the three methods differ by at most one episode on every
+shape, and CEM is $8\times$ cheaper than our GD configuration in wall-clock terms, so the null
+result is not an artefact of the optimiser.
+
+\begin{table}[t]
+\centering
+\caption{Parity runs on AdaJEPA's example set and axis. Top: mean final success over the 7
+shapes after 30 MPC steps. Bottom: the range spanned by their Fig.~9 knobs.}
+\label{tab:parity}
+\begin{tabular}{lc}
+\toprule
+Run & Success (\%) \\
+\midrule
+30 steps, Frozen & 31.0 \\
+30 steps, AdaJEPA & 43.0 \\
+30 steps, DTA-JEPA & 33.4 \\
+\midrule
+Fig.~9 knobs, AdaJEPA (9 configurations) & 31.0--38.1 \\
+Fig.~9 knobs, DTA-JEPA (9 configurations) & 33.3--42.9 \\
+CEM (4 replans), all methods & within 1 episode \\
+\bottomrule
+\end{tabular}
+\end{table}
+
 \subsection{Ablations and meta-initialisation are underpowered}
 
 The ablation rows ($7$ shape conditions $\times 12$ episodes $= 84$ episodes per row, seed 0)

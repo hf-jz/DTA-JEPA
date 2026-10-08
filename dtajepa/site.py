@@ -38,7 +38,7 @@ def table_html(df, index_name="", highlight="DTA-JEPA"):
 
 
 
-def parity_html(parity, traj_figs):
+def parity_html(parity, traj_figs, figs_dst):
     """Verification inventory + the parity runs, rendered from raw JSONL."""
     P = {"frozen": "Frozen", "adajepa": "AdaJEPA", "dtajepa": "DTA-JEPA"}
     out = []
@@ -260,7 +260,7 @@ def main():
     if os.path.exists(cp):
         calib = json.load(open(cp))
     traj_figs = traj_figures(figs_dst)
-    extra = parity_html(parity, traj_figs)
+    extra = parity_html(parity, traj_figs, figs_dst)
 
     def fmt_cal(tag, label):
         d = calib.get(tag)

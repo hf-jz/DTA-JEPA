@@ -1,16 +1,18 @@
 #!/bin/bash
 # Post-experiment packaging: report tables/figures -> paper -> PDF -> project site.
-set -u
+set -eu
 cd "$(dirname "$0")/.." || exit 1
 PY=/usr/bin/python3
 D=latex-paper/dtajepa-paper
 
 $PY -m dtajepa.report --in results/raw.jsonl --out results
+echo "[finish] report ok"
 for extra in parity_curves parity_sweep parity_cem; do
   [ -f results/$extra.jsonl ] && $PY -m dtajepa.report --in results/$extra.jsonl --out results/parity
 done
 [ -f results/parity/figs/fig_success_curves.png ] && mkdir -p results/figs && cp -f results/parity/figs/fig_success_curves.png results/figs/fig_parity_curves.png
 $PY -m dtajepa.site
+echo "[finish] site ok"
 
 mkdir -p "$D/figs"
 cp -f results/tables.tex "$D/results-tables.tex"
