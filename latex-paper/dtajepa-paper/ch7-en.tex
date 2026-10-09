@@ -1,0 +1,93 @@
+\section{STLS-JEPA: Thresholded Allocation, Straightened Latents}\label{sec:stls}
+
+The diagnostics of \S\ref{sec:results} are actionable, and acting on them is a better use of the
+remaining budget than tuning the existing knobs. We therefore derive \textbf{STLS-JEPA}
+(Table~\ref{tab:stls}) from four measured failures of DTA-JEPA. Nothing else changes: same
+encoder, same dual-timescale predictor, same planner, same episode sets.
+
+\begin{table}[t]
+\centering
+\caption{DTA-JEPA's measured failures and the STLS response. Each change traces to one
+measurement and has a predicted observable consequence (\S\ref{sec:stlsexp}).}
+\label{tab:stls}
+\small
+\begin{tabular}{p{4.6cm}p{4.6cm}p{4.4cm}}
+\toprule
+Diagnosis (measured) & STLS change & Predicted observable \\
+\midrule
+Planner-limited regime: at $H{=}8$ and 10 GD steps the families saturate and methods do not
+separate & Latent trajectory \emph{straightening} in pretraining & Steeper success curve; shape
+family separates \\
+Variance head rank-informative but conditionally compressed (relative ECE 82\%); the controller
+normalises surprise by its own lagging EMA and saturates at $4\times$ lr and 2.2 steps &
+\emph{Temperature} $\tau=\mathbb E[e^\top\Sigma^{-1}e]$ plus quantile thresholds on the
+calibrated surprise & Mean steps drop from 2.2 to 1.2--1.5; allocation stops pinning the ceiling \\
+Anchor radius $0.8$ equals one Adam step ($\eta\sqrt{n_f}=0.77$), so the trust region sets the
+step size (159 projections per episode) & Anchor radius calibrated to
+$c\,\eta\sqrt{n_f}\,\bar U\bar R$ --- an episode budget instead of a per-step limit & Projections
+drop to $O(10)$ per episode \\
+Recursion helps to depth three and degrades at four; under a dynamics shift it is harmful at
+every depth & Depth gated by curvature \emph{and} surprise, capped at three & Depth spent only on
+non-straight trajectories \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsection{Latent straightening}
+
+Pretraining adds a trajectory-shape term to the two-term objective,
+\begin{equation}
+\mathcal L_{\mathrm{str}}=\tfrac1d\Big[\big\|z_{t+1}-2z_t+z_{t-1}\big\|_2^2
++\big\|\hat y_{t+1}-2z_t+z_{t-1}\big\|_2^2\Big],
+\end{equation}
+the first bracket through the encoder (the encoded window should itself be straight) and the
+second through the predictor (the next predicted latent should continue that line). This is the
+temporal-straightening criterion of Wang et al.\ \cite{wang-2026-temporal}, which AdaJEPA's base
+model uses and which our version omitted: we regularised the latent \emph{distribution} (SIGReg)
+but never the latent \emph{geometry}. A straight latent trajectory makes the quadratic goal cost
+a faithful proxy for the true objective, which is what a ten-step Adam planner needs.
+
+\subsection{Thresholded, calibrated allocation}
+
+Let $e^\top\Sigma^{-1}e$ be the diagonal Mahalanobis residual of an observed transition. We fit a
+scalar temperature on held-out in-distribution transitions,
+$\tau=\mathbb E[e^\top\Sigma^{-1}e]$, so that
+$s_{\mathrm{cal}}=(e^\top\Sigma^{-1}e)/\tau$ has mean one on data the model was trained for, then
+allocate against quantiles of that calibrated distribution:
+\begin{equation}
+U_t=1+\mathbb 1[s_{\mathrm{cal}}>q_{75}]+\mathbb 1[s_{\mathrm{cal}}>q_{95}],
+\end{equation}
+with $q_{75},q_{95}$ the corresponding quantiles of $s_{\mathrm{cal}}$ on the reference stream, and where the reference stream is the \emph{closed-loop} surprise of a no-update probe of the same model rather than an open-loop teacher-forced stream. Two implementation details mattered more than the choice of quantiles, and we record them because they are the kind of defect that silently invalidates an allocation policy: the surprise handed to the controller must be normalised by the \emph{predictive} variance (an early version passed the raw squared error, and, separately, the Monte-Carlo \emph{epistemic} spread, neither of which is the quantity the temperature was fitted on), and that variance must actually reach the controller (the call site hard-coded it to zero). With both fixed, the closed-loop reference gives $\tau=1.54$ against $1.09$ open-loop --- a modest difference, so the decisive defect was the quantity, not the stream.
+Unlike \S\ref{sec:ctrl}, the reference is external (a fixed quantile) rather than the
+controller's own lagging moving average, so the allocation cannot drift to its ceiling merely
+because surprise rises within an episode. The fitted temperature is informative about \emph{which} half of the fix carries the weight:
+$\tau=1.09$ (push family) and $1.37$ (maze family), i.e.\ rescaling is nearly a no-op because the
+global variance scale was already right ($1.13$--$1.19$ raw). What was wrong is the
+\emph{reference}, not the scale: a threshold on a fixed external quantile replaces a ratio
+against the controller's own lagging moving average. The temperature is therefore kept as a
+diagnostic --- $\tau\gg1$ would indicate a genuinely mis-scaled head --- while the quantile
+thresholds do the work.
+
+\subsection{Curvature-gated refinement}
+
+Depth is spent only where the trajectory is not already straight:
+\begin{equation}
+K_t=1 \quad\text{if}\quad \big\|z_t-2z_{t-1}+z_{t-2}\big\|^2\le \mathrm{median}_{\mathcal D},
+\qquad\text{otherwise the quantile rule above, capped at three.}
+\end{equation}
+This is the direct response to the dynamics-shift counterexample: when the operator itself is
+wrong, iterating it amplifies error, and the right currency is adaptation (larger $U_t$), not
+recursion.
+
+\subsection{Stability with a calibrated trust region}
+
+The anchor radius becomes $\epsilon_f=c\,\eta_f\sqrt{n_f}\,\bar U\bar R$, with $c=0.5$ and
+$\bar U,\bar R$ the expected per-episode update count and replanning depth, so that it bounds the
+\emph{cumulative} drift of an episode rather than the displacement of one step; with
+$n_f=594.7$k and $\eta_f=5\times10^{-4}$ this gives $\epsilon_f\approx8$ in place of $0.8$.
+
+\subsection{Falsifiable expectations}\label{sec:stlsexp}
+
+We pre-register the four consequences in Table~\ref{tab:stls}: if STLS does not move the step
+count, the projection count or the success curves, then the diagnoses were right and the repairs
+were not --- which is itself the reportable outcome. Results follow in \S\ref{sec:stlsres}.

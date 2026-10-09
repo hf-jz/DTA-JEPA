@@ -39,6 +39,17 @@ METHODS = {
     "dtajepa":       dict(mode="dtajepa", lr=5e-4, enc_lr=1e-5, steps=1, buffer=5,
                           memory=256, param_memory=True, safety=True, controller=True,
                           adaptive_compute=True, slow=True, w_unc=0.5, w_safe=0.5, fold=True),
+    # reference stream for the STLS thresholds: same architecture, closed loop, but no update
+    # (lr 0, no projection) -- behaviourally the frozen baseline, yet it records surprise
+    "probe":         dict(mode="dtajepa", fold=True, lr=0.0, enc_lr=0.0, steps=1, buffer=5,
+                          memory=256, param_memory=False, safety=False, controller=True,
+                          adaptive_compute=False, slow=False, w_unc=0.0, w_safe=0.0,
+                          policy="threshold"),
+    "stls":          dict(mode="dtajepa", fold=True, lr=5e-4, enc_lr=1e-5, steps=1, buffer=5,
+                          memory=256, param_memory=True, safety=True, controller=True,
+                          adaptive_compute=True, slow=True, w_unc=0.5, w_safe=0.5,
+                          policy="threshold", calibrated="results/calib_stls.json",
+                          anchor_eps=8.0),
     "dtajepa_lora":  dict(mode="dtajepa", lr=5e-4, enc_lr=1e-5, steps=1, buffer=5,
                           memory=256, param_memory=True, safety=True, controller=True,
                           adaptive_compute=True, slow=True, w_unc=0.5, w_safe=0.5, fold=False),
@@ -195,9 +206,20 @@ class Runner:
     def make_adapter(self, model, k):
         if self.m["mode"] == "frozen":
             return None
-        safety = SafetyLayer(model, eps_anchor=self.cfg.anchor_eps,
+        safety = SafetyLayer(model, eps_anchor=self.m.get("anchor_eps", self.cfg.anchor_eps),
                              val_tol=self.cfg.val_tol) if self.m.get("safety") else None
-        ctrl = Controller() if self.m.get("controller") else None
+        ctrl = None
+        if self.m.get("controller"):
+            cal = None
+            if self.m.get("calibrated"):
+                fp = os.path.join(ROOT, self.m["calibrated"])
+                if not os.path.exists(fp):
+                    raise FileNotFoundError(
+                        f"{self.name} needs the STLS calibration {fp}; "
+                        f"run: python -m dtajepa.calib --fit_stls --ckpt <ckpt> --id <dset>")
+                with open(fp) as fh:
+                    cal = json.load(fh)
+            ctrl = Controller(calibrated=cal, policy=self.m.get("policy", "ratio"))
         return Adapter(model, mode=self.m["mode"], lr=self.m["lr"], enc_lr=self.m["enc_lr"],
                        steps=self.m["steps"], buffer=self.m["buffer"], memory=self.memory,
                        fold=self.m.get("fold", True),
@@ -230,11 +252,21 @@ class Runner:
         return a
 
     def surprise(self, model, z, u, z_n, k):
+        """Closed-loop next-step surprise of a transition: (squared error, predicted variance).
+
+        Both numbers are needed: the controller's thresholds are quantiles of the
+        variance-normalised error, so returning the error alone (as an earlier version did) forces
+        it to compare an unnormalised quantity against a calibrated threshold and pins the
+        allocation at its ceiling. The variance is the sum over latent dimensions, matching the
+        normalisation used when the temperature is fitted.
+        """
         with torch.no_grad():
             zh = z.unsqueeze(1).repeat(1, k, 1)
             uh = u.unsqueeze(1).repeat(1, k, 1)
             mean, logvar = model.predictor(zh, uh, u)[:2]
-            return float(((mean - z_n) ** 2).sum(-1).mean())
+            err = ((mean - z_n) ** 2).sum(-1).mean()
+            unc = logvar.exp().sum(-1).mean()
+            return float(err), float(unc)
 
     def step_env(self, ep, actions, corrupt_kind=None, corrupt_level=0.9, idx=0):
         """Execute an action chunk; returns transitions (obs, prop, a, obs_next, prop_next)."""
@@ -285,6 +317,9 @@ def run_condition(cond, method, n_ep, seed, cfg, verbose=False, keep_models=Fals
             fp = z_hist[0].mean(0).detach().numpy()
             if ad is not None:
                 ad.start_episode(fingerprint=fp)
+                if z_hist.shape[1] >= 3:      # trajectory curvature = depth gate
+                    d2 = z_hist[0, 2:] - 2 * z_hist[0, 1:-1] + z_hist[0, :-2]
+                    ad.curvature = float((d2 ** 2).sum(-1).mean())
                 n_ref = ad.n_refine
                 init = ep.last_actions if (cfg.reuse_actions and ep.last_actions is not None) else None
             else:
@@ -301,10 +336,10 @@ def run_condition(cond, method, n_ep, seed, cfg, verbose=False, keep_models=Fals
                 z_n = r.encode_batch(m, [t[3] for t in trans], [t[4] for t in trans]).detach()
                 u = m.action(torch.as_tensor(np.stack([t[2] for t in trans]),
                                              dtype=torch.float32))
-                err = r.surprise(m, z, u, z_n, k)
+                err, unc = r.surprise(m, z, u, z_n, k)
                 use_mem = r.m.get("memory", 0) > 0
                 for j, t in enumerate(trans):
-                    ad.observe(t[0], t[1], t[2], t[3], t[4], err=err, unc=0.0,
+                    ad.observe(t[0], t[1], t[2], t[3], t[4], err=err, unc=unc,
                                z=z[j].detach().numpy() if use_mem else None,
                                u=u[j].detach().numpy() if use_mem else None,
                                zn=z_n[j].numpy() if use_mem else None)
@@ -338,6 +373,7 @@ def run_condition(cond, method, n_ep, seed, cfg, verbose=False, keep_models=Fals
         stats = agg
         if r.param_memory is not None:
             stats["param_mem_size"] = len(r.param_memory)
+        stats["surprise_trace"] = [t for ad in adapters for t in getattr(ad, "trace", [])]
         if len(adapters) and adapters[0].safety is not None:
             stats["anchor_proj_total"] = float(sum(ad.safety.events["anchor_proj"]
                                                    for ad in adapters if ad.safety))
@@ -436,6 +472,7 @@ def main():
     ap.add_argument("--goal_gap", type=int, default=D.GOAL_GAP)
     ap.add_argument("--threads", type=int, default=8)
     ap.add_argument("--record_traj", action="store_true")
+    ap.add_argument("--stls_calib", default=None)
     ap.add_argument("--adapt_lr_scale", type=float, default=None)
     ap.add_argument("--adapt_steps", type=int, default=None)
     ap.add_argument("--adapt_buffer", type=int, default=None)
@@ -449,6 +486,10 @@ def main():
     torch.set_num_threads(a.threads)
     torch.set_grad_enabled(True)
 
+    if a.stls_calib:
+        for m in a.methods:
+            if METHODS[m].get("calibrated"):
+                METHODS[m]["calibrated"] = a.stls_calib
     for m in a.methods:                       # AdaJEPA Fig. 9-style overrides
         if m in METHODS:
             if a.adapt_lr_scale is not None:

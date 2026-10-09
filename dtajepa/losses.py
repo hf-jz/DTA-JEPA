@@ -14,6 +14,24 @@ import torch
 import torch.nn.functional as F
 
 
+def straightness(z, log=False):
+    """Temporal straightening: penalise the second difference of latent trajectories.
+
+    z: (B,T,d) latents of one trajectory. A straight latent trajectory has zero second
+    difference, which is what makes a *linear* latent cost a faithful proxy for the true
+    cost --- the property AdaJEPA's base model obtains with this criterion and which our
+    planner-limited regime suggests we are missing.
+    """
+    if z.shape[1] < 3:
+        return torch.zeros((), device=z.device, dtype=z.dtype)
+    d2 = z[:, 2:] - 2 * z[:, 1:-1] + z[:, :-2]
+    # per-element mean so the term is on the same scale as the prediction MSE.
+    # (The STLS controller's curvature gate uses the sum over dimensions instead, and
+    # compares against a median fitted on the same definition -- the two are internally
+    # consistent, which is what matters.)
+    return (d2 ** 2).mean()
+
+
 def variance_floor(z, target=1.0, eps=1e-4):
     """VICReg-style hinge: relu(target - std) per dimension.
 
@@ -53,6 +71,7 @@ def gaussian_nll(pred, target, logvar):
 
 
 def jepa_loss(model, obs, prop, act, future=4, lam_unc=0.1, lam_reg=0.1, lam_inv=0.1,
+              lam_str=0.0,
               deep_supervision=True, n_refine=None, sigreg_seed=0):
     """obs (B,T,3,H,W) uint8/float, prop (B,T,p), act (B,T-1,a).
 
@@ -102,7 +121,12 @@ def jepa_loss(model, obs, prop, act, future=4, lam_unc=0.1, lam_reg=0.1, lam_inv
     inv_in = torch.cat([z[:, :-1], z[:, 1:].detach()], -1)
     l_inv = F.mse_loss(model.inv(inv_in.reshape(-1, 2 * model.d)), act.reshape(-1, act.shape[-1]))
 
-    total = l_pred + l_pred_multi + lam_unc * l_unc + lam_reg * l_reg + lam_inv * l_inv
+    # straightness of the encoded window (encoder side) and of the one-step prediction
+    # continued from it (predictor side) -- the two quantities the planner actually rolls out
+    l_str = straightness(z) + straightness(torch.cat([z[:, k - 2:], mean1.unsqueeze(1)], 1))
+    total = (l_pred + l_pred_multi + lam_unc * l_unc + lam_reg * l_reg + lam_inv * l_inv
+             + lam_str * l_str)
+
     return {"loss": total, "pred": l_pred.detach(), "pred_multi": l_pred_multi.detach(),
             "unc": l_unc.detach(), "reg": l_reg.detach(), "inv": l_inv.detach(),
             "depth": depth.float().mean().detach(),

@@ -1,0 +1,18 @@
+\begin{table}[t]\centering
+\caption{STLS-JEPA against the three baselines on identical models and episodes. Diagnostics are the pre-registered observables of Table~\ref{tab:stls}.}
+\label{tab:stlsres}\small
+\begin{tabular}{llrrrrr}
+\toprule
+Family & Method & Success (\%) & Steps/upd & Depth & Anchor/ep & Rollback \\
+\midrule
+shape & Frozen & 39.9 & -- & -- & -- & -- \\
+shape & AdaJEPA & 38.1 & 1.00 & -- & -- & 0.00 \\
+shape & DTA-JEPA & 39.9 & 2.32 & 2.86 & 13.5 & 0.43 \\
+shape & STLS-JEPA & 38.1 & 1.11 & 1.06 & 0.0 & 0.27 \\
+\midrule
+dyn & Frozen & 17.7 & -- & -- & -- & -- \\
+dyn & AdaJEPA & 17.7 & 1.00 & -- & -- & 0.00 \\
+dyn & DTA-JEPA & 17.7 & 2.10 & 2.57 & 31.5 & 0.29 \\
+dyn & STLS-JEPA & 18.8 & 1.32 & 1.11 & 1.5 & 0.64 \\
+\bottomrule
+\end{tabular}\end{table}

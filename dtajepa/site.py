@@ -253,6 +253,64 @@ def traj_figures(outdir):
     return made
 
 
+def stls_html():
+    """STLS-JEPA section: the four repairs, the pre-registered observables and the outcome.
+
+    Reads results/stls/summary.json (written by scripts/stls_compare.py); returns "" when the
+    comparison has not been run so the site still builds.
+    """
+    fp = os.path.join(ROOT, "results", "stls", "summary.json")
+    if not os.path.exists(fp):
+        return ""
+    # site.py rebuilds docs/figs from results/*/figs, so a figure written straight into
+    # docs/figs by another script gets wiped: stage it here instead (same as layout_figure)
+    fig_src = os.path.join(ROOT, "results", "stls", "fig_stls.png")
+    if os.path.exists(fig_src):
+        shutil.copy(fig_src, os.path.join(ROOT, "docs", "figs", "fig_stls.png"))
+    S = json.load(open(fp))
+    NAME = {"frozen": "Frozen", "adajepa": "AdaJEPA", "dtajepa": "DTA-JEPA", "stls": "STLS-JEPA"}
+    METHODS = [m for m in ("frozen", "adajepa", "dtajepa", "stls")]
+    rows = ""
+    for suite, s in S.items():
+        for m in METHODS:
+            v = s["success"].get(m)
+            if v is None or v != v:
+                continue
+            cls = ' class="hl"' if m == "stls" else ""
+            rows += (f"<tr{cls}><td>{suite}</td><td>{NAME[m]}</td><td>{v:.1f}</td>"
+                     f"<td>{s['steps'][m]:.2f}</td><td>{s['depth'][m]:.2f}</td>"
+                     f"<td>{s['anchor'][m]:.1f}</td><td>{s['rollback'][m]:.1f}</td></tr>")
+    return f"""
+<h2>STLS-JEPA: four repairs, each from a measured failure</h2>
+<p class="sub">DTA-JEPA's diagnostics said <em>where</em> it fails. STLS-JEPA
+(<code>Surprise-Thresholded Latent Straightening</code>) acts on exactly those four points and
+changes nothing else — same encoder, same dual-timescale predictor, same planner, same episodes.
+The observables below were pre-registered in <code>docs/STLS-JEPA.md</code> before the run.</p>
+<table>
+<thead><tr><th>Diagnosis (measured)</th><th>STLS change</th></tr></thead>
+<tbody>
+<tr><td>Planner-limited regime: families saturate, methods do not separate</td>
+<td>Latent <b>straightening</b> in pretraining (second difference through encoder and predictor)</td></tr>
+<tr><td>Variance head conditionally compressed; controller normalises surprise by its own lagging
+EMA and pins 4&times; lr at 2.2 steps</td>
+<td><b>Temperature</b> &tau; plus <b>quantile thresholds</b> on the calibrated surprise, so the
+reference is external</td></tr>
+<tr><td>Anchor radius 0.8 equals one Adam step (&eta;&radic;n<sub>f</sub>=0.77) &rarr; 159
+projections/episode, the trust region sets the step size</td>
+<td>Anchor radius <b>calibrated to an episode budget</b>, c&middot;&eta;&radic;n<sub>f</sub>&middot;U&middot;R</td></tr>
+<tr><td>Recursion saturates at depth 3-4 and is harmful under a dynamics shift</td>
+<td><b>Curvature-gated depth</b>, capped at 3</td></tr>
+</tbody></table>
+<figure><img src="figs/fig_stls.png" alt="STLS comparison">
+<figcaption>Left: goal reached on identical models and episodes. Right: gradient steps per
+adaptation update — the thresholded controller should sit below the saturating baseline.</figcaption></figure>
+<table>
+<thead><tr><th>Family</th><th>Method</th><th>Success (%)</th><th>Steps/update</th><th>Depth</th>
+<th>Anchor proj./ep</th><th>Rollback/ep</th></tr></thead>
+<tbody>{rows}</tbody></table>
+"""
+
+
 def main():
     os.makedirs(DOCS, exist_ok=True)
     figs_src = os.path.join(RES, "figs")
@@ -308,6 +366,7 @@ def main():
     parity_curves_figure(figs_dst)
     traj_figs = traj_figures(figs_dst)
     extra = parity_html(parity, traj_figs, figs_dst)
+    stls_sec = stls_html()
 
     def fmt_cal(tag, label):
         d = calib.get(tag)
@@ -458,6 +517,7 @@ conditions of each shift family.</p>
 {f'<p class="sub">Mean squared latent error per refinement depth (depth 1 → 4): {depth_row}</p>' if depth_row else ''}
 
 {extra}
+{stls_sec}
 
 <h2>Protocol replication</h2>
 <p>Shift families, segment-based goal sampling (goals are future frames of the same held-out

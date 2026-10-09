@@ -58,8 +58,68 @@ def collect(model, ck, name, n=384, corrupt_kind=None, level=0.9, seed=0):
     # error at every refinement depth
     depth_err = ((trace - tgt[:, None]) ** 2).sum(-1)          # (B, K_max)
     return dict(err=err.numpy(), var=var.numpy(), depth_err=depth_err.numpy(),
-                lat_std=float(z.reshape(-1, z.shape[-1]).std(0).mean()))
+                z=z.detach().numpy(), lat_std=float(z.reshape(-1, z.shape[-1]).std(0).mean()))
 
+
+
+
+def fit_from_records(records, out):
+    """Fit the STLS constants on the *closed-loop* surprise trace of the frozen baseline.
+
+    The open-loop (teacher-forced) stream is not the stream the controller sees: closed-loop
+    next-step surprise runs several times higher (measured 169 vs 25 on the strengthened model),
+    so thresholds fitted open-loop are miscalibrated for the loop they govern. Reusing the frozen
+    baseline of the same sweep costs nothing extra.
+
+    trace rows are (err, predicted_variance, n_refine, curvature).
+    """
+    tr = [t for r in records
+          for t in ((r.get("adapt_stats") or {}).get("surprise_trace") or [])]
+    if len(tr) < 8:
+        raise SystemExit("not enough trace rows to fit (%d)" % len(tr))
+    err = np.array([t[0] for t in tr], dtype=float)
+    unc = np.maximum(np.array([t[1] for t in tr], dtype=float), 1e-6)
+    curv = np.array([t[3] if t[3] is not None else np.nan for t in tr], dtype=float)
+    ratio = err / unc
+    tau = float(np.mean(ratio))
+    s_cal = ratio / tau
+    res = dict(source="closed_loop_frozen", n_updates=int(len(tr)), tau=tau,
+               q_mid=float(np.quantile(s_cal, 0.75)), q_high=float(np.quantile(s_cal, 0.95)),
+               curv_mid=float(np.nanmedian(curv)) if np.isfinite(curv).any() else None,
+               mean_surprise_raw=float(np.mean(err)), mean_ratio=float(np.mean(ratio)))
+    with open(os.path.join(ROOT, out), "w") as f:
+        json.dump(res, f, indent=1)
+    print("STLS calibration (closed loop):", json.dumps(
+        {k: (round(v, 4) if isinstance(v, float) else v) for k, v in res.items()}))
+    return res
+
+def fit_stls(ckpt_name, id_name, n=384, out="results/calib_stls.json"):
+    """Fit the STLS allocation constants on in-distribution held-out transitions.
+
+    tau     : temperature for the predicted variance, tau = mean(e^2 / sigma^2), so that
+              calibrated surprise has mean one on data the model was trained for;
+    q_mid/q_high : quantiles of the calibrated surprise (the allocation thresholds);
+    curv_mid     : median trajectory curvature (second difference), the depth gate.
+    """
+    model, ck = load_model(ckpt_name)
+    model.eval()
+    x = collect(model, ck, id_name, n=n)
+    ratio = x["err"] / np.maximum(x["var"], 1e-9)
+    tau = float(np.mean(ratio))
+    s_cal = ratio / tau
+    d2 = np.diff(x["z"], n=2, axis=1) if x["z"].shape[1] >= 3 else np.zeros_like(x["z"][:, :1])
+    curv = (d2 ** 2).sum(-1).mean(1)
+    res = dict(ckpt=ckpt_name, id=id_name, tau=tau,
+               q_mid=float(np.quantile(s_cal, 0.75)), q_high=float(np.quantile(s_cal, 0.95)),
+               curv_mid=float(np.median(curv)), n=n,
+               mean_surprise_raw=float(np.mean(ratio)),
+               mean_surprise_cal=float(np.mean(s_cal)))
+    os.makedirs(os.path.join(ROOT, "results"), exist_ok=True)
+    with open(os.path.join(ROOT, out), "w") as f:
+        json.dump(res, f, indent=1)
+    print("STLS calibration:", json.dumps({k: (round(v, 4) if isinstance(v, float) else v)
+                                           for k, v in res.items()}))
+    return res
 
 def calibrate(x):
     """Reliability + correlation between predicted variance and realised squared error."""
@@ -87,7 +147,17 @@ def main():
     ap.add_argument("--corrupt", default="blur")
     ap.add_argument("--n", type=int, default=384)
     ap.add_argument("--out", default="results/calib.json")
+    ap.add_argument("--fit_stls", action="store_true")
+    ap.add_argument("--fit_records", action="store_true")
+    ap.add_argument("--in", dest="inp", default=None)
     a = ap.parse_args()
+    if a.fit_records:
+        recs = [json.loads(l) for l in open(a.inp) if l.strip()]
+        fit_from_records(recs, a.out)
+        raise SystemExit(0)
+    if a.fit_stls:
+        fit_stls(a.ckpt, a.id, n=a.n, out=a.out)
+        raise SystemExit(0)
     torch.set_num_threads(4)
     model, ck = load_model(a.ckpt)
     model.eval()

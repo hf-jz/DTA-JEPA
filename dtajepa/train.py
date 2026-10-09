@@ -89,7 +89,7 @@ def train(args):
         for i in range(0, len(perm) - args.bs + 1, args.bs):
             sel = tr_idx[perm[i:i + args.bs]]
             o, p, a = batch_tensors(obs, act, state, sel, device, pmean, pstd)
-            out = jepa_loss(model, o, p, a, future=FUTURE,
+            out = jepa_loss(model, o, p, a, future=FUTURE, lam_str=args.lam_str,
                             lam_unc=args.lam_unc, lam_reg=args.lam_reg, lam_inv=args.lam_inv,
                             sigreg_seed=step % 7)
             opt.zero_grad(set_to_none=True)
@@ -179,6 +179,7 @@ if __name__ == "__main__":
     ap.add_argument("--lam_unc", type=float, default=0.1)
     ap.add_argument("--lam_reg", type=float, default=0.1)
     ap.add_argument("--lam_inv", type=float, default=0.1)
+    ap.add_argument("--lam_str", type=float, default=0.0)   # STLS: temporal straightening
     ap.add_argument("--log_every", type=int, default=25)
     ap.add_argument("--max_iters", type=int, default=0)
     ap.add_argument("--seed", type=int, default=0)

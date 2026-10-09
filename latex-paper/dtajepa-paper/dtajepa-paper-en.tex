@@ -150,6 +150,15 @@ $0.02\%$).
 \noindent\textbf{Keywords}: latent world model; joint-embedding predictive architecture;
 test-time adaptation; model predictive control; uncertainty; continual learning; recursive
 reasoning
+We then derive STLS-JEPA from four measured diagnostics of DTA-JEPA (thresholded allocation,
+latent straightening, a calibrated trust region, curvature-gated refinement). Every mechanism-level
+prediction for it is confirmed --- gradient steps per update fall from 2.32 to 1.11, the effective step
+size stops saturating, recursion is spent only on non-straight trajectories and anchor projections fall
+from 13.5 to 0.0 per episode --- and none of it transfers to planning success: 38.1\% against
+39.9\% on the shape family and 18.8\% against 17.7\% on dynamics. Improving the world model
+does not settle the question either: straightening cuts next-step error by 64\% on the maze while
+halving closed-loop planning success, so one-step accuracy does not predict planning.
+
 \end{abstract}
 
 \clearpage
@@ -161,6 +170,8 @@ reasoning
 \include{ch4-en}
 \include{ch5-en}
 \include{ch6-en}
+\include{ch7-en}
+\include{ch7-res-en}
 \include{appendix-a-en}
 \include{appendix-b-en}
 \include{refs}

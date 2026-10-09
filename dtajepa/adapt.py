@@ -107,6 +107,11 @@ class SafetyLayer:
     """Anchor ball + validation gate + rollback bookkeeping."""
 
     def __init__(self, model, eps_anchor=1.0, val_tol=0.02):
+        # eps_anchor semantics: one Adam step of a fast set of n parameters moves the
+        # weights by about eta*sqrt(n) (Adam is ~sign-descent). A radius equal to that
+        # number is therefore a *per-step* limiter, not an episode budget -- measured as
+        # 159 projections per episode at eps=0.8 with n=594.7k, eta=5e-4. Calibrate the
+        # radius to c * eta * sqrt(n) * (steps per episode) instead.
         self.eps = eps_anchor
         self.val_tol = val_tol
         self.theta0 = {n: p.detach().clone() for n, p in model.named_parameters()
@@ -146,16 +151,69 @@ class SafetyLayer:
 
 # ---------------------------------------------------------------------------
 class Controller:
-    """Surprise/OOD -> (gradient steps, lr scale, refinement depth)."""
+    """Surprise/OOD -> (gradient steps, lr scale, refinement depth).
+
+    Two policies:
+
+    * ``ratio`` (DTA-JEPA): a sigmoid on surprise divided by its running mean. Measured
+      behaviour: the predicted variance is rank-informative but scale-compressed (relative
+      calibration error 82%), so the ratio sits above one and the allocation saturates at its
+      upper envelope (4x learning rate).
+    * ``threshold`` (STLS-JEPA): surprise is first *calibrated* by a temperature fitted on
+      held-out transitions (tau = mean(e^2/sigma^2)), then compared against quantiles of the
+      calibrated training distribution. Allocation is therefore graded (1/2/3 steps) and
+      interpreted against a real reference, not against a self-normalising ratio.
+    """
 
     def __init__(self, u_min=1, u_max=3, lr_min=0.2, lr_max=5.0, refine_min=1, refine_max=4,
-                 ema=0.7, gain=2.0):
+                 ema=0.7, gain=2.0, calibrated=None, q_mid=1.0, q_high=2.0,
+                 curvature_mid=None, policy="ratio"):
         self.u_min, self.u_max = u_min, u_max
         self.lr_min, self.lr_max = lr_min, lr_max
         self.refine_min, self.refine_max = refine_min, refine_max
         self.ema, self.gain = ema, gain
         self.mean_err = None
         self.last = {}
+        self.policy = policy
+        self.tau = None if not calibrated else float(calibrated["tau"])
+        self.q_mid = float(calibrated["q_mid"]) if calibrated else q_mid
+        self.q_high = float(calibrated["q_high"]) if calibrated else q_high
+        self.curvature_mid = (float(calibrated["curv_mid"]) if calibrated
+                              else (curvature_mid if curvature_mid is not None else None))
+
+    def intensity_thresholded(self, err_raw, unc=0.0, curvature=None):
+        """STLS allocation: calibrated surprise against quantiles, gated by trajectory curvature.
+
+        Depth is spent only where the trajectory is *not* straight *and* the surprise is high:
+        the depth curve saturates at three, and under a dynamics shift iterating a wrong
+        operator increases error, so refinement is not a free accuracy knob.
+        """
+        # The temperature was fitted on the *variance-normalised* residual
+        # (e^2 / predicted variance), not on the raw MSE: dividing a raw MSE by it compares
+        # incommensurable quantities and pins the allocation at its ceiling, which is exactly
+        # the failure the threshold policy exists to remove.
+        denom = max(float(unc), 1e-6)
+        s_cal = err_raw / denom
+        if self.tau:
+            s_cal = s_cal / self.tau
+        steps = self.u_min
+        if s_cal > self.q_mid:
+            steps += 1
+        if s_cal > self.q_high:
+            steps += 1
+        lr_scale = self.lr_min + (self.lr_max - self.lr_min) * min(
+            1.0, max(0.0, (steps - self.u_min) / max(1, self.u_max - self.u_min)))
+        n_refine = self.refine_min
+        straight = (curvature is not None and self.curvature_mid is not None
+                    and curvature <= self.curvature_mid)
+        if not straight:
+            n_refine = min(3, self.refine_min + (1 if s_cal > self.q_mid else 0)
+                           + (1 if s_cal > self.q_high else 0))
+        self.last = {"surprise": float(err_raw), "s_cal": float(s_cal), "s": 1.0 * steps,
+                     "steps": int(steps), "lr_scale": float(lr_scale),
+                     "n_refine": int(n_refine), "unc": float(unc),
+                     "curvature": None if curvature is None else float(curvature)}
+        return self.last
 
     def intensity(self, err, unc=0.0):
         err = float(err)
@@ -198,6 +256,7 @@ class Adapter:
         self.params = self._param_set(model, mode, fold)
         self.opt = torch.optim.Adam(self.params, lr=lr) if opt == "adam" else \
             torch.optim.SGD(self.params, lr=lr)
+        self.trace = []
         self.info = {"updates": 0, "steps": 0, "rollback": 0, "surprise": [], "depth": [],
                      "retrieved": 0, "lr": []}
 
@@ -339,7 +398,24 @@ class Adapter:
                                                                samples=self.mc_samples,
                                                                n_refine=self.n_refine)
                 unc = float(epi.mean())
-            ctrl = self.controller.intensity(err, unc)
+            if getattr(self.controller, "policy", "ratio") == "threshold":
+                # The thresholds are quantiles of the error normalised by the *predictive*
+                # variance -- the quantity the temperature was fitted on. The MC epistemic spread
+                # above is a different number (and the frozen probe never fills it at all), so
+                # feeding it here compares incommensurable scales and pins the allocation at its
+                # ceiling. Recompute the predictive variance on the same buffer batch.
+                with torch.no_grad():
+                    z_b = self.model.encode(obs, prop)
+                    z_nb = self.model.encode(obs_n, prop_n).detach()
+                    u_b = self.model.action(act)
+                    zhb = z_b.unsqueeze(1).repeat(1, self.model.k, 1)
+                    uhb = u_b.unsqueeze(1).repeat(1, self.model.k, 1)
+                    _, logvar = self.model.predictor(zhb, uhb, u_b)[:2]
+                    unc = float(logvar.exp().sum(-1).mean())
+                ctrl = self.controller.intensity_thresholded(
+                    err, unc, getattr(self, "curvature", None))
+            else:
+                ctrl = self.controller.intensity(err, unc)
             steps, lr_scale = ctrl["steps"], ctrl["lr_scale"]
             self.n_refine = ctrl["n_refine"]
         else:
@@ -395,7 +471,12 @@ class Adapter:
         self.info["updates"] += 1
         self.info["steps"] += steps
         self.info["surprise"].append(err)
+        k_log = None if self.n_refine is None else int(self.n_refine)
+        self.trace.append((float(err), float(unc), k_log,
+                           None if getattr(self, "curvature", None) is None
+                           else float(self.curvature)))
         self.info["lr"].append(self.base_lr * lr_scale)
+        self.info["depth"].append(k_log if k_log is not None else -1)
         if self.safety is not None and self.safety.events["anchor_proj"]:
             self.info["anchor_proj"] = self.safety.events["anchor_proj"]
         return {"err": err, "unc": unc, "steps": steps, "lr": self.base_lr * lr_scale,
@@ -406,6 +487,9 @@ class Adapter:
         s = dict(self.info)
         s["surprise"] = float(np.mean(s["surprise"])) if s["surprise"] else 0.0
         s["lr"] = float(np.mean(s["lr"])) if s["lr"] else 0.0
+        # depth was declared as a list but never averaged, and the aggregator only keeps scalars,
+        # so the refinement-depth observable was silently unmeasurable
+        s["depth"] = float(np.mean([x for x in s["depth"] if x is not None])) if s["depth"] else 0.0
         return s
 
 

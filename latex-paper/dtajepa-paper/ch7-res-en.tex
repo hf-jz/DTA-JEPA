@@ -1,0 +1,69 @@
+
+\subsection{Results: mechanism confirmed, success not}\label{sec:stlsres}
+
+Table~\ref{tab:stlsres} reports the comparison on the straightened models with all four methods
+run on identical episodes. Every pre-registered mechanism observable moved, and in the predicted
+direction: gradient steps per adaptation update fell from $2.32$ to $1.11$ on the shape family
+(predicted $1.2$--$1.5$) and from $2.10$ to $1.32$ on the dynamics family; the effective step size
+stopped sitting at the saturating $1.6\times10^{-3}$ and dropped to $2\times10^{-4}$; refinement
+depth fell from $2.86$ to $1.06$, i.e.\ recursion is now spent only on non-straight trajectories;
+and anchor projections fell from $13.5$ to $0.0$ per episode on shape and from $31.5$ to $1.47$ on
+dynamics, so the trust region no longer acts as the controller. The three defects behind the
+earlier ``pinned'' allocation --- a normaliser hard-coded to zero at the call site, the
+Monte-Carlo epistemic spread used where the predictive variance was fitted, and a raw mean squared
+error divided by a temperature fitted on variance-normalised residuals --- are documented in
+\S\ref{sec:stls} because each of them silently invalidated the policy while every stage still
+reported success.
+
+The success column does not follow. On the shape family STLS-JEPA reaches $38.1\%$ against $39.9\%$
+for the frozen model and for DTA-JEPA; on the dynamics family it reaches $18.8\%$ against $17.7\%$
+for all three baselines, a difference of one episode out of $96$. This is the falsifiable branch we
+pre-registered: \emph{the diagnoses were right and the repairs did not transfer to success}. At this
+planning budget the success rate is not set by the allocation policy, the trust region or the
+refinement depth --- all of which we can now show behave as designed --- but by something the
+allocation cannot reach.
+
+\input{tab-stlsres}
+
+\subsection{A side effect that is larger than the effect we were chasing}
+
+Straightening was introduced to improve the conditioning of the latent cost. It does change the
+world model, measurably, and the change is family-dependent in a way worth reporting
+(Table~\ref{tab:wm}). Next-step prediction error falls on both families --- from $25.8$ to $20.0$ on
+push ($-22\%$) and from $46.6$ to $16.6$ on the maze ($-64\%$) --- and the variance head's ranking
+and relative calibration both improve ($\rho$ $0.549\to0.630$, ECE $0.821\to0.790$; $\rho$
+$0.791\to0.706$, ECE $0.893\to0.796$; note the ranking regression on the maze is more than offset by
+the error reduction). The recursion depth curve also becomes healthier: on the maze it now falls
+monotonically ($30.1\to21.3\to16.4\to16.6$) where before it saturated at depth three
+($51.9\to44.8\to43.3\to46.6$).
+
+Closed-loop planning moves the other way on that same family: the frozen model's dynamics-family
+success drops from $35.4\%$ to $17.7\%$ although its next-step error improved by $64\%$. On the
+push family both move together ($32.1\to39.9\%$ success with $-22\%$ error). We therefore cannot
+claim that better one-step prediction buys better latent-space planning: here it buys it on one
+family and costs it on the other. The most likely mechanism is that the quadratic goal cost relies
+on the latent trajectory's \emph{curvature} to distinguish reachable from unreachable states, and
+straightening removes exactly that signal; a straightened trajectory is cheaper to predict and
+less informative to plan with. This is a hypothesis, not a measurement, and it is the first thing
+to test in the next round.
+Caveat, stated plainly: the straightened checkpoints were trained at lr $5\times10^{-4}$ while the
+originals used $6\times10^{-4}$, so the comparison confounds the straightening weight with the
+learning rate; the direction of the effect is consistent on both families, but the magnitude is
+not attributable to $\lambda_{\mathrm{str}}$ alone.
+
+\begin{table}[t]\centering
+\caption{World model, planning-free: in-distribution next-step prediction on the evaluation
+distributions (192 windows). Straightening improves the model on both families; success against the
+frozen baseline moves with it on push and against it on the maze.}
+\label{tab:wm}\small
+\begin{tabular}{llrrrr}
+\toprule
+Checkpoint & Family & Error & Pred.\ var. & Spearman $\rho$ & rel.\ ECE \\
+\midrule
+\texttt{push4}  & push & 25.80 & 22.81 & 0.549 & 0.821 \\
+\texttt{push4s} & push & 19.98 & 18.66 & 0.630 & 0.790 \\
+\texttt{maze25}  & maze & 46.63 & 32.85 & 0.791 & 0.893 \\
+\texttt{maze25s} & maze & 16.64 & 12.48 & 0.706 & 0.796 \\
+\bottomrule
+\end{tabular}
+\end{table}

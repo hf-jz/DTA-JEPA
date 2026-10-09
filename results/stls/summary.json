@@ -1,0 +1,80 @@
+{
+ "shape": {
+  "n_conditions": 7,
+  "success": {
+   "frozen": 39.881,
+   "adajepa": 38.0952,
+   "dtajepa": 39.881,
+   "stls": 38.0952
+  },
+  "steps": {
+   "frozen": NaN,
+   "adajepa": 1.0,
+   "dtajepa": 2.3224,
+   "stls": 1.1121
+  },
+  "lr": {
+   "frozen": NaN,
+   "adajepa": 0.0005,
+   "dtajepa": 0.0016,
+   "stls": 0.0002
+  },
+  "depth": {
+   "frozen": NaN,
+   "adajepa": -1.0,
+   "dtajepa": 2.8621,
+   "stls": 1.0605
+  },
+  "anchor": {
+   "frozen": NaN,
+   "adajepa": NaN,
+   "dtajepa": 13.494,
+   "stls": 0.0
+  },
+  "rollback": {
+   "frozen": NaN,
+   "adajepa": 0.0,
+   "dtajepa": 0.4286,
+   "stls": 0.2738
+  }
+ },
+ "dyn": {
+  "n_conditions": 4,
+  "success": {
+   "frozen": 17.7083,
+   "adajepa": 17.7083,
+   "dtajepa": 17.7083,
+   "stls": 18.75
+  },
+  "steps": {
+   "frozen": NaN,
+   "adajepa": 1.0,
+   "dtajepa": 2.0986,
+   "stls": 1.3174
+  },
+  "lr": {
+   "frozen": NaN,
+   "adajepa": 0.0005,
+   "dtajepa": 0.0014,
+   "stls": 0.0005
+  },
+  "depth": {
+   "frozen": NaN,
+   "adajepa": -1.0,
+   "dtajepa": 2.5743,
+   "stls": 1.1139
+  },
+  "anchor": {
+   "frozen": NaN,
+   "adajepa": NaN,
+   "dtajepa": 31.4792,
+   "stls": 1.4688
+  },
+  "rollback": {
+   "frozen": NaN,
+   "adajepa": 0.0,
+   "dtajepa": 0.2917,
+   "stls": 0.6354
+  }
+ }
+}
