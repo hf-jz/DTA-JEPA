@@ -156,8 +156,11 @@ prediction for it is confirmed --- gradient steps per update fall from 2.32 to 1
 size stops saturating, recursion is spent only on non-straight trajectories and anchor projections fall
 from 13.5 to 0.0 per episode --- and none of it transfers to planning success: 38.1\% against
 39.9\% on the shape family and 18.8\% against 17.7\% on dynamics. Improving the world model
-does not settle the question either: straightening cuts next-step error by 64\% on the maze while
-halving closed-loop planning success, so one-step accuracy does not predict planning.
+does not settle the question either: in a controlled sweep that varies only the straightening
+weight, next-step error falls by 72\% while success on the unshifted dynamics is identical
+($15/24$ at every weight) and moves non-significantly under a mass shift, so one-step accuracy does
+not predict planning --- and the latent property that does has not been identified among the four
+geometry metrics we measured.
 
 \end{abstract}
 

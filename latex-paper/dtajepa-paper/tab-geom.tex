@@ -1,0 +1,13 @@
+\begin{table}[t]\centering
+\caption{Straightening sweep: identical lr, epochs and seed, only $\lambda_{\mathrm{str}}$ varies. Prediction error falls monotonically while the latent's effective dimension on the maze distribution and the closed-loop success at a mass shift follow it down.}
+\label{tab:geom}\small
+\begin{tabular}{rrrrrrr}
+\toprule
+$\lambda_{\mathrm{str}}$ & pred.\ err. & curvature & sep/curv & eff.\ dim & succ.\ default & succ.\ lowMass \\
+\midrule
+0.00 & 37.96 & 0.494 & 0.322 & 15.54 & 62.5 & 37.5 \\
+0.02 & 22.09 & 1.301 & 0.863 & 5.43 & 62.5 & 33.3 \\
+0.10 & 23.25 & 1.141 & 0.652 & 4.27 & 62.5 & 37.5 \\
+0.50 & 10.67 & 0.203 & 1.270 & 5.00 & 62.5 & 16.7 \\
+\bottomrule
+\end{tabular}\end{table}

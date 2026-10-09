@@ -162,6 +162,22 @@ adaptation update — the thresholded controller should sit below the saturating
 <thead><tr><th>Family</th><th>Method</th><th>Success (%)</th><th>Steps/update</th><th>Depth</th>
 <th>Anchor proj./ep</th><th>Rollback/ep</th></tr></thead>
 <tbody><tr><td>shape</td><td>Frozen</td><td>39.9</td><td>nan</td><td>nan</td><td>nan</td><td>nan</td></tr><tr><td>shape</td><td>AdaJEPA</td><td>38.1</td><td>1.00</td><td>-1.00</td><td>nan</td><td>0.0</td></tr><tr><td>shape</td><td>DTA-JEPA</td><td>39.9</td><td>2.32</td><td>2.86</td><td>13.5</td><td>0.4</td></tr><tr class="hl"><td>shape</td><td>STLS-JEPA</td><td>38.1</td><td>1.11</td><td>1.06</td><td>0.0</td><td>0.3</td></tr><tr><td>dyn</td><td>Frozen</td><td>17.7</td><td>nan</td><td>nan</td><td>nan</td><td>nan</td></tr><tr><td>dyn</td><td>AdaJEPA</td><td>17.7</td><td>1.00</td><td>-1.00</td><td>nan</td><td>0.0</td></tr><tr><td>dyn</td><td>DTA-JEPA</td><td>17.7</td><td>2.10</td><td>2.57</td><td>31.5</td><td>0.3</td></tr><tr class="hl"><td>dyn</td><td>STLS-JEPA</td><td>18.8</td><td>1.32</td><td>1.11</td><td>1.5</td><td>0.6</td></tr></tbody></table>
+<h3>Does planning success track predictive accuracy? A controlled sweep says no</h3>
+<p class="sub">Four maze world models trained with identical lr, epochs and seed, differing only in
+the straightening weight &lambda;<sub>str</sub>. Next-step error falls monotonically (37.96 &rarr;
+10.67, &minus;72%%) while success under the <em>unshifted</em> dynamics is byte-for-byte identical
+(15/24 at every &lambda;, Fisher p=1.000), and success under the mass shift is flat to
+&lambda;=0.1 then drops non-significantly at &lambda;=0.5 (9/24 &rarr; 4/24, p=0.193). None of the
+four geometry metrics tracks that movement: effective dimension steps down at the first non-zero
+&lambda; and then stays put, curvature is non-monotone, and action sensitivity <em>rises</em> with
+&lambda;. Accuracy and planning are decoupled; the geometry mechanism is not identified by these
+metrics.</p>
+<table><thead><tr><th>&lambda;str</th><th>pred. err</th><th>curv</th><th>sep/curv</th><th>eff. dim</th><th>succ default</th><th>succ lowMass</th></tr></thead><tbody><tr><td>0.00</td><td>37.96</td><td>0.494</td><td>0.322</td><td>15.54</td><td>62.5</td><td>37.5</td></tr><tr><td>0.02</td><td>22.09</td><td>1.301</td><td>0.863</td><td>5.43</td><td>62.5</td><td>33.3</td></tr><tr><td>0.10</td><td>23.25</td><td>1.141</td><td>0.652</td><td>4.27</td><td>62.5</td><td>37.5</td></tr><tr><td>0.50</td><td>10.67</td><td>0.203</td><td>1.270</td><td>5.00</td><td>62.5</td><td>16.7</td></tr></tbody></table>
+<figure><img src="figs/fig_geom_sweep.png" alt="straightening sweep">
+<figcaption>Left: prediction error falls as the latent's effective dimension collapses. Right:
+planning success is flat on the unshifted condition and only moves (non-significantly) at the
+largest weight, so the accuracy axis and the planning axis are not the same axis.</figcaption>
+</figure>
 
 
 <h2>Protocol replication</h2>

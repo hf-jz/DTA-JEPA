@@ -473,6 +473,7 @@ def main():
     ap.add_argument("--threads", type=int, default=8)
     ap.add_argument("--record_traj", action="store_true")
     ap.add_argument("--stls_calib", default=None)
+    ap.add_argument("--labels", nargs="*", default=None)
     ap.add_argument("--adapt_lr_scale", type=float, default=None)
     ap.add_argument("--adapt_steps", type=int, default=None)
     ap.add_argument("--adapt_buffer", type=int, default=None)
@@ -503,6 +504,8 @@ def main():
             if a.adapt_buffer == 0:
                 METHODS[m]["buffer"] = 1        # a 1-transition buffer is AdaJEPA's "none"
     specs = attach_builders(suite_specs(a.suite, a.ckpt_push, a.ckpt_maze, a.goal_gap))
+    if a.labels:
+        specs = [c for c in specs if c["label"] in a.labels]
     cfg = MPCConfig(planner=a.planner, horizon=a.horizon, chunk=a.chunk,
                     max_replans=a.max_replans, opt_steps=a.opt_steps, gd_lr=0.1,
                     cem_samples=a.cem_samples, cem_iter=a.cem_iter, cem_elite=a.cem_elite)

@@ -94,6 +94,8 @@ tuning the budget until it turns positive.
 success rate did not move. That is the useful half of a negative result: the allocation policy,
 the trust region and the refinement depth are now instrumented and demonstrably behaving as
 designed, which narrows the planning bottleneck to the latent \emph{geometry} rather than to the
-adaptation schedule --- and the straightening experiment shows that geometry and predictive
-accuracy are not the same lever, since a $64\%$ error reduction came with a halving of planning
-success on the same family.
+adaptation schedule. The straightening sweep shows that predictive accuracy is not that lever
+either: a $72\%$ error reduction left planning success unchanged on the unshifted dynamics and
+moved it non-significantly under a mass shift, with none of four geometry metrics tracking the
+difference. Identifying what does gate planning in a latent cost is the open problem this work
+leaves behind.

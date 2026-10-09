@@ -58,10 +58,74 @@ def collect(model, ck, name, n=384, corrupt_kind=None, level=0.9, seed=0):
     # error at every refinement depth
     depth_err = ((trace - tgt[:, None]) ** 2).sum(-1)          # (B, K_max)
     return dict(err=err.numpy(), var=var.numpy(), depth_err=depth_err.numpy(),
+                _o=o, _p=p, _a=a,
                 z=z.detach().numpy(), lat_std=float(z.reshape(-1, z.shape[-1]).std(0).mean()))
 
 
 
+
+
+def geometry(ckpt_name, name, n=192, out="results/geometry.json", append=True):
+    """Planning-free latent geometry panel for one checkpoint.
+
+    Separates the two axes that a straightening weight moves in opposite directions:
+      pred_err   -- next-step prediction error (the "accuracy" axis)
+      curv       -- mean squared second difference per dim (what straightening minimises)
+      sep        -- mean squared distance between distinct timesteps in a window (state
+                    separation: what the goal cost needs to tell states apart)
+      sep_over_curv -- the ratio the planner actually reads; a straight but uninformative
+                    latent has a low ratio
+      eff_dim    -- participation ratio of the latent covariance (how many dimensions carry
+                    variance)
+      ju_norm    -- mean ||dz_{t+1}/du_t|| (how much one action moves the latent)
+    """
+    model, ck = load_model(ckpt_name)
+    model.eval()
+    x = collect(model, ck, name, n=n)
+    z = x["z"]
+    B, L, d = z.shape
+    err = float(np.mean(x["err"]))
+    var = float(np.mean(x["var"]))
+    d2 = np.diff(z, n=2, axis=1)
+    curv = float((d2 ** 2).mean())
+    if L > 1:
+        iu = np.triu_indices(L, 1)
+        sep = float(np.mean([((z[b, i] - z[b, j]) ** 2).mean() for b, i, j in
+                             zip(range(B), iu[0], iu[1])]))
+    else:
+        sep = float("nan")
+    zf = z.reshape(-1, d)
+    cov = np.cov(zf.T)
+    ev = np.linalg.eigvalsh(cov)
+    ev = np.clip(ev, 1e-12, None)
+    eff_dim = float(ev.sum() ** 2 / (ev ** 2).sum())
+    ju = float("nan")
+    try:
+        # ||d z_hat_{t+1} / d u_t||: how much one action moves the predicted latent
+        with torch.no_grad():
+            za = model.encode(x["_o"].reshape(B * L, *x["_o"].shape[2:]),
+                              x["_p"].reshape(B * L, -1)).reshape(B, L, -1)
+            u = model.action(x["_a"].reshape(B * (L - 1), -1)).reshape(B, L - 1, -1)
+        u_next = u[:, model.k - 1].detach().clone().requires_grad_(True)
+        pred = model.predictor(za[:, :model.k].detach(), u[:, :model.k].detach(), u_next)[0]
+        g = torch.autograd.grad(pred.mean(), u_next)[0]
+        ju = float(g.norm(dim=-1).mean())
+    except Exception as e:                        # geometry must never break the panel
+        print("  ju_norm unavailable:", e)
+    res = dict(ckpt=ckpt_name, dset=name, n=n, pred_err=err, pred_var=var, curv=curv,
+               sep=sep, sep_over_curv=sep / max(curv, 1e-12), eff_dim=eff_dim, ju_norm=ju,
+               lat_std=x["lat_std"])
+    rows = []
+    fp = os.path.join(ROOT, out)
+    if append and os.path.exists(fp):
+        rows = [json.loads(l) for l in open(fp) if l.strip()]
+    rows = [r for r in rows if (r["ckpt"], r["dset"]) != (ckpt_name, name)] + [res]
+    with open(fp, "w") as f:
+        for r in rows:
+            f.write(json.dumps(r) + "\n")
+    print("geometry", json.dumps({k: (round(v, 4) if isinstance(v, float) else v)
+                                  for k, v in res.items()}))
+    return res
 
 def fit_from_records(records, out):
     """Fit the STLS constants on the *closed-loop* surprise trace of the frozen baseline.
@@ -149,8 +213,12 @@ def main():
     ap.add_argument("--out", default="results/calib.json")
     ap.add_argument("--fit_stls", action="store_true")
     ap.add_argument("--fit_records", action="store_true")
+    ap.add_argument("--geometry", action="store_true")
     ap.add_argument("--in", dest="inp", default=None)
     a = ap.parse_args()
+    if a.geometry:
+        geometry(a.ckpt, a.id, n=a.n, out=a.out)
+        raise SystemExit(0)
     if a.fit_records:
         recs = [json.loads(l) for l in open(a.inp) if l.strip()]
         fit_from_records(recs, a.out)

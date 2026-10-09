@@ -25,36 +25,52 @@ allocation cannot reach.
 
 \input{tab-stlsres}
 
-\subsection{A side effect that is larger than the effect we were chasing}
+\subsection{The world model improves; the planner does not follow}
 
-Straightening was introduced to improve the conditioning of the latent cost. It does change the
-world model, measurably, and the change is family-dependent in a way worth reporting
-(Table~\ref{tab:wm}). Next-step prediction error falls on both families --- from $25.8$ to $20.0$ on
-push ($-22\%$) and from $46.6$ to $16.6$ on the maze ($-64\%$) --- and the variance head's ranking
-and relative calibration both improve ($\rho$ $0.549\to0.630$, ECE $0.821\to0.790$; $\rho$
-$0.791\to0.706$, ECE $0.893\to0.796$; note the ranking regression on the maze is more than offset by
-the error reduction). The recursion depth curve also becomes healthier: on the maze it now falls
-monotonically ($30.1\to21.3\to16.4\to16.6$) where before it saturated at depth three
-($51.9\to44.8\to43.3\to46.6$).
+Straightening was introduced to improve the conditioning of the latent cost, and it does change the
+world model measurably (Table~\ref{tab:wm}): next-step prediction error falls from $25.80$ to
+$19.98$ on push ($-22\%$) and from $46.63$ to $16.64$ on the maze ($-64\%$), the variance head's
+ranking and relative calibration both improve on push ($\rho$ $0.549\to0.630$, ECE $0.821\to0.790$),
+and the maze depth curve becomes monotonically decreasing ($30.1\to21.3\to16.4\to16.6$) where it
+previously saturated at depth three ($51.9\to44.8\to43.3\to46.6$).
 
-Closed-loop planning moves the other way on that same family: the frozen model's dynamics-family
-success drops from $35.4\%$ to $17.7\%$ although its next-step error improved by $64\%$. On the
-push family both move together ($32.1\to39.9\%$ success with $-22\%$ error). We therefore cannot
-claim that better one-step prediction buys better latent-space planning: here it buys it on one
-family and costs it on the other. The most likely mechanism is that the quadratic goal cost relies
-on the latent trajectory's \emph{curvature} to distinguish reachable from unreachable states, and
-straightening removes exactly that signal; a straightened trajectory is cheaper to predict and
-less informative to plan with. This is a hypothesis, not a measurement, and it is the first thing
-to test in the next round.
-Caveat, stated plainly: the straightened checkpoints were trained at lr $5\times10^{-4}$ while the
-originals used $6\times10^{-4}$, so the comparison confounds the straightening weight with the
-learning rate; the direction of the effect is consistent on both families, but the magnitude is
-not attributable to $\lambda_{\mathrm{str}}$ alone.
+A first reading of the closed-loop numbers suggested something stronger: the frozen model's
+dynamics-family success on those checkpoints is $17.7\%$ against $35.4\%$ on the originals, a
+halving of planning success alongside a $64\%$ error reduction. \emph{We could not reproduce that
+under control, and we therefore withdraw the causal reading.} The two checkpoints differ in three
+ways at once (straightening weight, learning rate $5$ vs $6\times10^{-4}$, and nothing else), and on
+the push family both axes moved the same way (success $32.1\to39.9\%$ with error $-22\%$), which
+already argued against a single mechanism.
+
+\subsection{Controlled sweep: the two axes are separate}
+
+Four maze world models were then trained with identical learning rate, epochs and seed, differing
+only in $\lambda_{\mathrm{str}}$ (Table~\ref{tab:geom}). Prediction error falls monotonically, by
+$72\%$ end to end, and the closed-loop result is unequivocal in the opposite direction: success on
+the \emph{unshifted} dynamics is identical at every weight ($15/24$ episodes at each of
+$\lambda_{\mathrm{str}}\in\{0,0.02,0.1,0.5\}$, Fisher exact $p=1.000$), and success under the mass
+shift is flat up to $\lambda_{\mathrm{str}}=0.1$ ($9/24$ vs $9/24$, $p=1.000$) before falling at
+$0.5$ ($9/24\to4/24$, $p=0.193$, not significant at this sample size). A $72\%$ improvement in
+next-step accuracy therefore buys nothing measurable in planning success, and costs nothing on the
+condition the model was trained for.
+
+We also tested the geometric explanation proposed in the previous subsection and failed to confirm
+it. None of the four planning-free geometry metrics tracks the movement: the effective dimension of
+the latent drops from $15.5$ to about $5$ at the \emph{first} non-zero weight and then stays flat
+while success does not move, curvature is non-monotone in $\lambda_{\mathrm{str}}$
+($0.49\to1.30\to1.14\to0.20$), and action sensitivity $\|\partial z/\partial u\|$ \emph{rises}
+monotonically with the weight that is supposed to be squeezing it
+($1.00\to1.29\times10^{-3}$). The honest status is therefore: prediction accuracy and planning
+success are decoupled on this benchmark, and the latent property that gates planning has not been
+identified by the candidates we measured.
+
+\input{tab-geom}
 
 \begin{table}[t]\centering
 \caption{World model, planning-free: in-distribution next-step prediction on the evaluation
-distributions (192 windows). Straightening improves the model on both families; success against the
-frozen baseline moves with it on push and against it on the maze.}
+distributions (192 windows). Straightening improves the model on both families; the closed-loop
+comparison across the same two pairs is confounded (see text), which is what motivated the
+controlled sweep of Table~\ref{tab:geom}.}
 \label{tab:wm}\small
 \begin{tabular}{llrrrr}
 \toprule

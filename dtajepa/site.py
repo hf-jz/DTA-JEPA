@@ -267,6 +267,9 @@ def stls_html():
     fig_src = os.path.join(ROOT, "results", "stls", "fig_stls.png")
     if os.path.exists(fig_src):
         shutil.copy(fig_src, os.path.join(ROOT, "docs", "figs", "fig_stls.png"))
+    fig_g = os.path.join(ROOT, "results", "geom", "geom_sweep.png")
+    if os.path.exists(fig_g):
+        shutil.copy(fig_g, os.path.join(ROOT, "docs", "figs", "fig_geom_sweep.png"))
     S = json.load(open(fp))
     NAME = {"frozen": "Frozen", "adajepa": "AdaJEPA", "dtajepa": "DTA-JEPA", "stls": "STLS-JEPA"}
     METHODS = [m for m in ("frozen", "adajepa", "dtajepa", "stls")]
@@ -280,6 +283,17 @@ def stls_html():
             rows += (f"<tr{cls}><td>{suite}</td><td>{NAME[m]}</td><td>{v:.1f}</td>"
                      f"<td>{s['steps'][m]:.2f}</td><td>{s['depth'][m]:.2f}</td>"
                      f"<td>{s['anchor'][m]:.1f}</td><td>{s['rollback'][m]:.1f}</td></tr>")
+    gfp = os.path.join(ROOT, "results", "geom", "summary.json")
+    geom_tbl = ""
+    if os.path.exists(gfp):
+        A = json.load(open(gfp))
+        tr = "".join(
+            f"<tr><td>{a['lam']:.2f}</td><td>{a['pred_err']:.2f}</td><td>{a['curv']:.3f}</td>"
+            f"<td>{a['sep_over_curv']:.3f}</td><td>{a['eff_dim']:.2f}</td>"
+            f"<td>{a['succ_default']:.1f}</td><td>{a['succ_lowMass']:.1f}</td></tr>" for a in A)
+        geom_tbl = ("<table><thead><tr><th>&lambda;str</th><th>pred. err</th><th>curv</th>"
+                    "<th>sep/curv</th><th>eff. dim</th><th>succ default</th>"
+                    "<th>succ lowMass</th></tr></thead><tbody>" + tr + "</tbody></table>")
     return f"""
 <h2>STLS-JEPA: four repairs, each from a measured failure</h2>
 <p class="sub">DTA-JEPA's diagnostics said <em>where</em> it fails. STLS-JEPA
@@ -308,6 +322,22 @@ adaptation update — the thresholded controller should sit below the saturating
 <thead><tr><th>Family</th><th>Method</th><th>Success (%)</th><th>Steps/update</th><th>Depth</th>
 <th>Anchor proj./ep</th><th>Rollback/ep</th></tr></thead>
 <tbody>{rows}</tbody></table>
+<h3>Does planning success track predictive accuracy? A controlled sweep says no</h3>
+<p class="sub">Four maze world models trained with identical lr, epochs and seed, differing only in
+the straightening weight &lambda;<sub>str</sub>. Next-step error falls monotonically (37.96 &rarr;
+10.67, &minus;72%%) while success under the <em>unshifted</em> dynamics is byte-for-byte identical
+(15/24 at every &lambda;, Fisher p=1.000), and success under the mass shift is flat to
+&lambda;=0.1 then drops non-significantly at &lambda;=0.5 (9/24 &rarr; 4/24, p=0.193). None of the
+four geometry metrics tracks that movement: effective dimension steps down at the first non-zero
+&lambda; and then stays put, curvature is non-monotone, and action sensitivity <em>rises</em> with
+&lambda;. Accuracy and planning are decoupled; the geometry mechanism is not identified by these
+metrics.</p>
+{geom_tbl}
+<figure><img src="figs/fig_geom_sweep.png" alt="straightening sweep">
+<figcaption>Left: prediction error falls as the latent's effective dimension collapses. Right:
+planning success is flat on the unshifted condition and only moves (non-significantly) at the
+largest weight, so the accuracy axis and the planning axis are not the same axis.</figcaption>
+</figure>
 """
 
 
